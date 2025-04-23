@@ -1,4 +1,4 @@
-#include <stdio.h> 
+﻿#include <stdio.h> 
 #include <math.h>
 #include "stdafx.h"
 #include "Application.h"
@@ -68,6 +68,7 @@ void Document::Serialize(CArchive& archive)
         archive << _modulusOfElasticity << _momentOfInertia;
         _objectList.Serialize(archive);
     }
+    Analyse();
 }
 
 BOOL Document::InsertObject(ObjectCast* item)
@@ -103,7 +104,8 @@ BOOL Document::InsertObject(ObjectCast* item)
     {
         _objectList.AddTail(item);
     }
-
+    Analyse();
+    UpdateAllViews(NULL);
     return TRUE;
 }
 
@@ -231,7 +233,11 @@ BOOL Document::Analyse()
             if (CLASSOF(object, "RollerSupport"))
                 analysis->CreateRollerSupport(((SupportCast *)object)->GetPosition());
             if (CLASSOF(object, "PointLoad"))
-                analysis->CreatePointLoad(((LoadCast*)object)->GetPosition(), ((LoadCast*)object)->GetValue());
+            {
+                double pos = ((LoadCast*)object)->GetPosition();
+                double val = ((LoadCast*)object)->GetValue();
+                analysis->CreatePointLoad(pos, val);
+            }
             if (CLASSOF(object, "LinearDistributedLoad"))
                 analysis->CreateLinearDistributedLoad(((LoadCast*)object)->GetPosition(), ((LoadCast*)object)->GetValue(), ((LoadCast*)object)->GetLength());
         }
@@ -260,6 +266,33 @@ BOOL Document::Analyse()
         _bendingMomentList.AddHead((CObject *)bendingMoment);
         _displacementList.AddHead((CObject *)displacement);
     } while (result == S_OK);
+
+    _supportReactions.clear();
+
+    analysis->_sections.Reset();
+    while (!analysis->_sections.IsEmpty())
+    {
+        SupportNode* node = (SupportNode*)analysis->_sections.GetItem();
+        double pos = node->GetPosition();
+        double R = node->GetForce()(3, 0); // initial
+
+        // Suche Punktlasten im Analysemodell (nicht im ObjectList!)
+        analysis->_loads.Reset();
+        while (!analysis->_loads.IsEmpty())
+        {
+            LoadNode* ln = (LoadNode*)analysis->_loads.GetItem();
+            if (ln->GetLength() == 0.0 && fabs(ln->GetStart() - pos) < EPSILON && ln->IsSupportLoad())
+            {
+                R += ln->GetValue(); // Reaktion zurückrechnen!
+            }
+
+            if (!analysis->_loads.Next()) break;
+        }
+
+        _supportReactions[pos] = R;
+
+        if (!analysis->_sections.Next()) break;
+    }
 
     delete analysis;
 
@@ -440,3 +473,16 @@ double Document::GetDisplacement(double position)
     }
     return 0;
 }
+
+double Document::GetSupportReactionAt(double position)
+{
+    for (std::map<double, double>::const_iterator it = _supportReactions.begin(); it != _supportReactions.end(); ++it)
+    {
+        if (fabs(it->first - position) < EPSILON)
+        {
+            return it->second;
+        }
+    }
+    return 0.0;
+}
+

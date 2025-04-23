@@ -126,6 +126,7 @@ public:
     inline double GetLength() { return _length; };
 
     void MarkSupportLoad() { _isSupportLoad = TRUE; }
+    int IsSupportLoad() const { return _isSupportLoad; }
 
     virtual double GetDistance(double start);
     virtual int IsLoadVector(double start, double length);

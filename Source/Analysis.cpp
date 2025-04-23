@@ -266,10 +266,16 @@ void Matrix::Inverse()
 
 void List::Add(void* item)
 {
-    _current = _current->Next = CreateNode(_current, _current->Next, item);
-    if (_current->Next != NULL)
-    {
-        _current->Next->Prev = _current;
+    if (_current == nullptr) {
+        _root = _current = CreateNode(nullptr, nullptr, item);
+    }
+    else {
+        Node* newNode = CreateNode(_current, _current->Next, item);
+        if (_current->Next != nullptr) {
+            _current->Next->Prev = newNode;
+        }
+        _current->Next = newNode;
+        _current = newNode;
     }
 }
 
@@ -944,13 +950,28 @@ HRESULT Beam::CreateRollerSupport(double position)
     return S_OK;
 }
 
-HRESULT Beam::CreatePointLoad(double position, double value)
+HRESULT __stdcall Beam::CreatePointLoad(double position, double value)
 {
-    if (position >= EPSILON)
+    PointLoadNode* node = new PointLoadNode(position, value);
+
+    // Markiere, wenn Punktlast auf einem Support liegt
+    _sections.Reset();
+    while (!_sections.IsEmpty())
     {
-        PointLoadNode* obj = new PointLoadNode(position, value);
-        InsertLoad(obj);
+        void* item = _sections.GetItem();
+        if (!item) break;
+
+        SupportNode* support = (SupportNode*)item;
+        if (fabs(support->GetPosition() - position) < EPSILON)
+        {
+            node->MarkSupportLoad();
+            break;
+        }
+
+        if (!_sections.Next()) break;
     }
+
+    _loads.Add(node);
     return S_OK;
 }
 

@@ -221,6 +221,15 @@ void View::Draw(CDC* pDC, CDC* pDrawDC)
                 if (item != NULL)
                 {
                     item->Draw(pDC, beamX, beamY, scaleX);
+                    if (CLASSOF(item, "FixedSupport") || CLASSOF(item, "HingedSupport") || CLASSOF(item, "RollerSupport"))
+                    {
+                        SupportCast* support = (SupportCast*)item;
+                        double pos = support->GetPosition();
+
+                        double reaction = _document->GetSupportReactionAt(pos);
+
+                        DrawValue(pDC, beamX + (int)(pos * scaleX), beamY + 25, FALSE, reaction);
+                    }
                 }
             }
 

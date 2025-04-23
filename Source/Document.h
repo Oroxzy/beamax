@@ -1,5 +1,6 @@
 #ifndef __Document__
 #define __Document__
+#include <map> // falls nicht vorhanden
 
 class Document : public CDocument
 {
@@ -34,6 +35,7 @@ public:
     double GetShearForce(double position);
     double GetBendingMoment(double position);
     double GetDisplacement(double position);
+    double GetSupportReactionAt(double position);
 
 protected:
     Document();
@@ -42,6 +44,8 @@ protected:
 
     DECLARE_MESSAGE_MAP()
     DECLARE_DYNCREATE(Document)
+    std::map<double, double> _supportReactions;
+
 };
 
 #endif
