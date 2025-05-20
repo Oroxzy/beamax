@@ -9,6 +9,10 @@ private:
     double _momentOfInertia;
     double _axialArea;
 
+    double _maxMoment;
+    double _maxShear;
+    double _maxReaction;
+
 public:
     double _beamLength;
     CObList _objectList;
@@ -24,6 +28,11 @@ public:
     void DeleteObject(ObjectCast* item);
     int SortLoadLevels(CDC* pDC, double scaleX);
     BOOL Analyse();
+
+    // Zugriff auf Analyse-Ergebnisse (für View)
+    double GetMaxMoment() const { return _maxMoment; }
+    double GetMaxShear() const { return _maxShear; }
+    double GetMaxReaction() const { return _maxReaction; }
 
     // automation interface
     BOOL CreateBeam(double length, double modulusOfElasticity, double momentOfInertia, double axialArea);

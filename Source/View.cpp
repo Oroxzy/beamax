@@ -1,4 +1,4 @@
-
+﻿
 #include <math.h>
 #include "stdafx.h"
 #include "Dialog.h"
@@ -109,6 +109,28 @@ void View::OnDraw(CDC* pDrawDC)
     pDC->FillRect(rectLogical, new CBrush(::GetSysColor(COLOR_WINDOW)));
     Draw(pDC, pDrawDC);
 
+    // Maximalwerte anzeigen (oben rechts)
+    char buffer[128];
+    sprintf_s(buffer, "Mmax = %.2f kNm, \nQmax = %.2f kN, \nRmax = %.2f kN",
+        _document->GetMaxMoment(),
+        _document->GetMaxShear(),
+        _document->GetMaxReaction());
+
+    CSize textSize = pDC->GetTextExtent(buffer, (int)strlen(buffer));
+    pDC->SetTextAlign(TA_RIGHT | TA_TOP);
+
+    // etwas Abstand vom Rand (10px)
+    int x = rectDevice.right - 10;
+    int y = 10;
+
+    // Rechteck-Hintergrund zeichnen (optional)
+    CRect box(x - textSize.cx - 8, y - 4, x + 4, y + textSize.cy + 4);
+    pDC->FillSolidRect(box, RGB(255, 255, 240));
+    pDC->DrawEdge(box, EDGE_SUNKEN, BF_RECT);
+
+    // Text zeichnen
+    pDC->TextOut(x, y, buffer);
+
     // BitBlt Bitmap into View
     if (pDrawDC != pDC)
     {
@@ -194,7 +216,13 @@ void View::Draw(CDC* pDC, CDC* pDrawDC)
         CPen newPen(PS_SOLID, 1, RGB(0, 0, 0));
         CPen* oldPen = pDC->SelectObject(&newPen);
         CFont newFont;
-        newFont.CreateFont(-9, 0, 0, 0, 0, 0, 0, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, NULL);
+        newFont.CreateFont(
+            -12, 0, 0, 0,              // Höhe: -20 entspricht ca. 14pt
+            FW_BOLD, FALSE, FALSE, FALSE,
+            ANSI_CHARSET, OUT_DEFAULT_PRECIS,
+            CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+            DEFAULT_PITCH | FF_SWISS, _T("Segoe UI"));
+
         CFont* oldFont = (CFont *)pDC->SelectObject(&newFont);
         pDC->SetTextAlign(TA_LEFT | TA_TOP);
 

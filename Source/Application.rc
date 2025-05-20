@@ -240,7 +240,7 @@ STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "About Beamax"
 FONT 8, "Tahoma"
 BEGIN
-    LTEXT           "Beamax 2.4",IDC_STATIC,15,8,82,8
+    LTEXT           "Beamax 2.4, edited by jeremymeile@gmail.com\n for dumme Bauschüler",IDC_STATIC,15,8,250,8
     PUSHBUTTON      "OK",IDOK,124,59,50,14,NOT WS_TABSTOP
 END
 

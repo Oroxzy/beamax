@@ -267,6 +267,38 @@ BOOL Document::Analyse()
         _displacementList.AddHead((CObject *)displacement);
     } while (result == S_OK);
 
+    // Berechne Maximalwerte für Moment, Querkraft und Reaktion
+    _maxMoment = 0.0;
+    _maxShear = 0.0;
+
+    // Max Momente und Querkräfte aus Section-Polynomen
+    POSITION p;
+    Section* s;
+
+    // Max Moment
+    p = _bendingMomentList.GetHeadPosition();
+    while (p != NULL) {
+        s = (Section*)_bendingMomentList.GetNext(p);
+        if (s) {
+            for (double x = 0; x <= s->Length; x += 0.01) {
+                double val = fabs(s->A4 * pow(x, 4) + s->A3 * pow(x, 3) + s->A2 * x * x + s->A1 * x + s->A0);
+                if (val > _maxMoment) _maxMoment = val;
+            }
+        }
+    }
+
+    // Max Querkraft
+    p = _shearForceList.GetHeadPosition();
+    while (p != NULL) {
+        s = (Section*)_shearForceList.GetNext(p);
+        if (s) {
+            for (double x = 0; x <= s->Length; x += 0.01) {
+                double val = fabs(s->A1 * x + s->A0);  // A4–A2 = 0 bei Querkraft
+                if (val > _maxShear) _maxShear = val;
+            }
+        }
+    }
+
     _supportReactions.clear();
 
     analysis->_sections.Reset();
@@ -292,6 +324,13 @@ BOOL Document::Analyse()
         _supportReactions[pos] = R;
 
         if (!analysis->_sections.Next()) break;
+    }
+
+    // Max Reaktion berechnen
+    _maxReaction = 0.0;
+    for (auto& r : _supportReactions) {
+        if (fabs(r.second) > _maxReaction)
+            _maxReaction = fabs(r.second);
     }
 
     delete analysis;
