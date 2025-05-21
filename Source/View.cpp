@@ -67,6 +67,10 @@ void View::OnInitialUpdate()
     SetScrollSizes(MM_TEXT, CSize(100, 100));
 
     _document = (Document*)m_pDocument;
+
+    _viewShearForce = TRUE;
+    _viewBendingMoment = TRUE;
+    _viewNumericalValues = TRUE;
 }
 
 void View::LPtoDP(CRect& rect)
@@ -108,28 +112,6 @@ void View::OnDraw(CDC* pDrawDC)
     // draw all the things
     pDC->FillRect(rectLogical, new CBrush(::GetSysColor(COLOR_WINDOW)));
     Draw(pDC, pDrawDC);
-
-    // Maximalwerte anzeigen (oben rechts)
-    char buffer[128];
-    sprintf_s(buffer, "Mmax = %.2f kNm, \nQmax = %.2f kN, \nRmax = %.2f kN",
-        _document->GetMaxMoment(),
-        _document->GetMaxShear(),
-        _document->GetMaxReaction());
-
-    CSize textSize = pDC->GetTextExtent(buffer, (int)strlen(buffer));
-    pDC->SetTextAlign(TA_RIGHT | TA_TOP);
-
-    // etwas Abstand vom Rand (10px)
-    int x = rectDevice.right - 10;
-    int y = 10;
-
-    // Rechteck-Hintergrund zeichnen (optional)
-    CRect box(x - textSize.cx - 8, y - 4, x + 4, y + textSize.cy + 4);
-    pDC->FillSolidRect(box, RGB(255, 255, 240));
-    pDC->DrawEdge(box, EDGE_SUNKEN, BF_RECT);
-
-    // Text zeichnen
-    pDC->TextOut(x, y, buffer);
 
     // BitBlt Bitmap into View
     if (pDrawDC != pDC)
@@ -267,6 +249,21 @@ void View::Draw(CDC* pDC, CDC* pDrawDC)
             {
                 item->GetBoundRect().Draw(pDC);
             }
+
+            // Einheit + Maxwert der Auflagerreaktionen anzeigen
+            char rmaxLabel[64];
+            sprintf_s(rmaxLabel, "[kN]  Rmax = %.2f", _document->GetMaxReaction());
+
+            CSize textSize = pDC->GetTextExtent(rmaxLabel, (int)strlen(rmaxLabel));
+
+            // ⬅️ Ausrichtung ändern: Text soll rechts außen stehen
+            pDC->SetTextAlign(TA_LEFT | TA_TOP);
+
+            // ⬅️ Position nach rechts vom Balken verschieben
+            int x = beamX + (int)(_document->_beamLength * scaleX) + 10;
+            int y = beamY + 4;  // direkt unterhalb vom Strich (Balkenlinie)
+
+            pDC->TextOut(x, y, rmaxLabel);
         }
 
         // get fixed degrees of freedom
@@ -879,8 +876,37 @@ void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeigh
     pDC->TextOut(beamX - textSize.cx - 16, beamY - (textSize.cy / 2), viewName);
 
     // print unit name
-    textSize = pDC->GetTextExtent(unitName, sizeof(unitName));
-    pDC->TextOut(beamX + (int)(_document->_beamLength * scaleX) + 12, beamY - (textSize.cy / 2), unitName);
+    char label[64];
+
+    // Einheit + Maxwert bestimmen
+    if (strcmp(viewName, "FZ") == 0) {
+        sprintf_s(label, "[kN]  Qmax = %.2f", _document->GetMaxShear());
+    }
+    else if (strcmp(viewName, "MY") == 0) {
+        sprintf_s(label, "[kNm]  Mmax = %.2f", _document->GetMaxMoment());
+    }
+    else if (strcmp(viewName, "UZ") == 0) {
+        double maxW = 0.0;
+
+        POSITION pos = sectionList->GetHeadPosition();
+        while (pos != NULL) {
+            Section* s = (Section*)sectionList->GetNext(pos);
+            if (s) {
+                for (double x = 0; x <= s->Length; x += 0.01) {
+                    double y = s->A4 * pow(x, 4) + s->A3 * pow(x, 3) + s->A2 * x * x + s->A1 * x + s->A0;
+                    if (fabs(y) > fabs(maxW)) maxW = y;
+                }
+            }
+        }
+
+        sprintf_s(label, "[mm]  wmax = %.2f", maxW * 1000.0);  // korrekt in mm
+    }
+    else {
+        sprintf_s(label, "%s", unitName);
+    }
+
+    textSize = pDC->GetTextExtent(label, (int)strlen(label));
+    pDC->TextOut(beamX + (int)(_document->_beamLength * scaleX) + 12, beamY - (textSize.cy / 2), label);
 
     // find maximum value for scaling
     double maximum = 0;
