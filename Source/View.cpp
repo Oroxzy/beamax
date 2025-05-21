@@ -5,6 +5,9 @@
 #include "Object.h"
 #include "Document.h"
 #include "View.h"
+#include <gdiplus.h>
+using namespace Gdiplus;
+#pragma comment(lib, "gdiplus.lib")
 
 IMPLEMENT_DYNCREATE(View, CScrollView)
 
@@ -134,6 +137,10 @@ BOOL View::OnEraseBkgnd(CDC* pDC)
 
 void View::Draw(CDC* pDC, CDC* pDrawDC)
 {
+    ULONG_PTR gdiplusToken;
+    GdiplusStartupInput gdiplusStartupInput;
+    GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+
     // let the view background be transparent
     pDC->SetBkMode(TRANSPARENT);
 
@@ -199,7 +206,7 @@ void View::Draw(CDC* pDC, CDC* pDrawDC)
         CPen* oldPen = pDC->SelectObject(&newPen);
         CFont newFont;
         newFont.CreateFont(
-            -12, 0, 0, 0,              // Höhe: -20 entspricht ca. 14pt
+            -14, 0, 0, 0,              // Höhe: -20 entspricht ca. 14pt
             FW_BOLD, FALSE, FALSE, FALSE,
             ANSI_CHARSET, OUT_DEFAULT_PRECIS,
             CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
@@ -219,8 +226,17 @@ void View::Draw(CDC* pDC, CDC* pDrawDC)
             int beamY = beamHeight - 32;
 
             // draw the beam object/line
-            pDC->MoveTo(beamX, beamY);
-            pDC->LineTo(beamX + (int)(_document->_beamLength * scaleX), beamY);
+            // GDI+ Initialisierung (lokal)
+            Graphics graphics(pDC->GetSafeHdc());
+            graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+
+            // schwarzer Pen, 1 Pixel
+            Pen pen(Color(255, 0, 0, 0), 1.5f);  // RGBA (voll Deckkraft, schwarz)
+
+            // Linie zeichnen
+            PointF start((REAL)beamX, (REAL)beamY);
+            PointF end((REAL)(beamX + (REAL)(_document->_beamLength * scaleX)), (REAL)beamY);
+            graphics.DrawLine(&pen, start, end);
 
             // draw the support and load objects
             ObjectCast* item;
@@ -936,25 +952,48 @@ void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeigh
     double scaleY = (viewHeight / maximum) * 0.36 * (mirror ? -1 : 1);
 
     // draw the graph
+    // GDI+ Objekt für Anti-Aliasing-Kurven
+    Graphics graphics(pDC->GetSafeHdc());
+    graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+    Pen curvePen(Color(255, 0, 0, 0), 1.5f);  // Schwarz, 1.5px
+
     position = sectionList->GetHeadPosition();
     while (position != NULL)
     {
         object = (Section*)sectionList->GetNext(position);
         if (object != NULL)
         {
-            pDC->MoveTo(beamX + (int)(object->Start * scaleX), beamY);
-
+            double xStartAbs = object->Start;
             double dx = (1 / scaleX);
+            bool first = true;
+            PointF lastPoint;
 
-            for (double x = 0; x < object->Length; x += dx)
+            // Startpunkt links
+            PointF startX((REAL)(beamX + xStartAbs * scaleX), (REAL)(beamY));
+            PointF firstVal((REAL)(beamX + xStartAbs * scaleX), (REAL)(beamY + SolvePolynom(0, object) * scaleY));
+            graphics.DrawLine(&curvePen, startX, firstVal);
+
+            // Kurve zeichnen
+            for (double x = 0; x <= object->Length; x += dx)
             {
-                pDC->LineTo(beamX + (int)((object->Start + x) * scaleX), beamY + (int)(SolvePolynom(x, object) * scaleY));
+                double xAbs = xStartAbs + x;
+                double yVal = SolvePolynom(x, object) * scaleY;
+                PointF currentPoint((REAL)(beamX + xAbs * scaleX), (REAL)(beamY + yVal));
+
+                if (!first)
+                    graphics.DrawLine(&curvePen, lastPoint, currentPoint);
+
+                lastPoint = currentPoint;
+                first = false;
             }
 
-            double y = SolvePolynom(object->Length, object);
+            // Endpunkt rechts
+            double xEndAbs = xStartAbs + object->Length;
+            double yEnd = SolvePolynom(object->Length, object) * scaleY;
 
-            pDC->LineTo(beamX + (int)((object->Start + object->Length) * scaleX), beamY + (int)(y * scaleY));
-            pDC->LineTo(beamX + (int)((object->Start + object->Length) * scaleX), beamY);
+            PointF endVal((REAL)(beamX + xEndAbs * scaleX), (REAL)(beamY + yEnd));
+            PointF endX((REAL)(beamX + xEndAbs * scaleX), (REAL)(beamY));
+            graphics.DrawLine(&curvePen, endVal, endX);
         }
     }
 
