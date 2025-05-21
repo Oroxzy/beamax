@@ -254,7 +254,7 @@ void View::Draw(CDC* pDC, CDC* pDrawDC)
 
                         double reaction = _document->GetSupportReactionAt(pos);
 
-                        DrawValue(pDC, beamX + (int)(pos * scaleX), beamY + 25, FALSE, reaction);
+                        DrawValue(pDC, beamX + (int)(pos * scaleX), beamY + 12, FALSE, reaction);
                     }
                 }
             }
