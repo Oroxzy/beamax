@@ -336,14 +336,10 @@ BOOL Document::Analyse()
 
     // Max Reaktion berechnen
     _maxReaction = 0.0;
-    _minReaction = DBL_MAX;
 
     for (auto& r : _supportReactions) {
-        double absVal = fabs(r.second);
-        if (absVal > _maxReaction)
-            _maxReaction = absVal;
-        if (absVal < _minReaction)
-            _minReaction = absVal;
+        if (fabs(r.second) > _maxReaction)
+            _maxReaction = fabs(r.second);
     }
 
     delete analysis;

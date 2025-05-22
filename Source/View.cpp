@@ -254,15 +254,11 @@ void View::Draw(CDC* pDC, CDC* pDrawDC)
 
                         double reaction = _document->GetSupportReactionAt(pos);
                         double maxReaction = _document->GetMaxReaction();
-                        double minReaction = _document->GetMinReaction();
 
                         double absReaction = fabs(reaction);
 
-                        // Vergleiche mit kleinem Toleranzwert
-                        bool isMax = fabs(absReaction - maxReaction) < 1e-6;
-                        bool isMin = fabs(absReaction - minReaction) < 1e-6;
-
-                        COLORREF color = isMax ? RGB(220, 0, 0) : (isMin ? RGB(0, 200, 0) : RGB(0, 0, 0));
+                        bool isMax = (fabs(maxReaction) > EPSILON) && (fabs(reaction) >= fabs(maxReaction) - 1e-6);
+                        COLORREF color = isMax ? RGB(220, 0, 0) : RGB(0, 0, 0);
 
                         DrawReactionValue(pDC, beamX + (int)(pos * scaleX), beamY + 26, reaction, color);
                         pDC->SetTextColor(RGB(0, 0, 0)); // Sicherheit
