@@ -87,9 +87,8 @@ BOOL Document::InsertObject(ObjectCast* item)
             object = (ObjectCast*)_objectList.GetNext(position);
             if (object != NULL)
             {
-                if (CLASSOF(item, "HingedSupport") || CLASSOF(item, "FixedSupport") || CLASSOF(item, "RollerSupport"))
-                {
-                    if (fabs(((SupportCast *)object)->GetPosition() - ((SupportCast *)item)->GetPosition()) < EPSILON)
+                if (CLASSOF(object, "HingedSupport") || CLASSOF(object, "FixedSupport") || CLASSOF(object, "RollerSupport")) {
+                    if (fabs(((SupportCast*)object)->GetPosition() - ((SupportCast*)item)->GetPosition()) < EPSILON)
                     {
                         return FALSE;
                     }
@@ -117,7 +116,9 @@ void Document::DeleteObject(ObjectCast* item)
     position = _objectList.Find(item);
     if (position != NULL)
     {
+        ObjectCast* itemToDelete = (ObjectCast*)_objectList.GetAt(position);
         _objectList.RemoveAt(position);
+        delete itemToDelete;
     }
 }
 
@@ -193,11 +194,7 @@ int Document::SortLoadLevels(CDC* pDC, double scaleX)
                     ((LoadCast*)object)->GetExtent(pDC, start, length, scaleX);
                     if (level == currentLevel)
                     {
-                        if (((currentStart >= start) &&
-                            (currentStart <= (start + length))) ||
-                            (((currentStart + currentLength) >= start) &&
-                            ((currentStart + currentLength) <= (start + length))))
-                        {
+                        if ((currentStart < start + length) && (currentStart + currentLength > start)) {
                             match = TRUE;
                         }
                     }
@@ -283,10 +280,7 @@ BOOL Document::Analyse()
 
                 if (fabs(val) > fabs(_maxMoment)) _maxMoment = val;
 
-                double absVal = fabs(val);
-                if (absVal > 0.1 && absVal < _minMoment) {
-                    _minMoment = absVal;
-                }
+                if (fabs(val) > EPSILON && fabs(val) < fabs(_minMoment)) _minMoment = val;
             }
         }
     }

@@ -6,6 +6,11 @@ IMPLEMENT_SERIAL(ObjectCast, CObject, 1);
 
 void ObjectCast::Serialize(CArchive& archive)
 {
+    CObject::Serialize(archive);
+    if (archive.IsStoring())
+        archive << _type;
+    else
+        archive >> _type;
 }
 
 void ObjectCast::Draw(CDC* pDC, int x, int y, double Scale)
@@ -31,6 +36,11 @@ IMPLEMENT_SERIAL(SupportCast, ObjectCast, 2);
 
 void SupportCast::Serialize(CArchive& archive)
 {
+    ObjectCast::Serialize(archive);
+    if (archive.IsStoring())
+        archive << _position;
+    else
+        archive >> _position;
 }
 
 void SupportCast::SetPosition(double value)
@@ -286,7 +296,7 @@ void LinearDistributedLoad::Draw(CDC* pDC, int x, int y, double Scale)
     }
 
     sprintf_s(buffer, "%.2f", _value);
-    pDC->SetTextAlign(TA_LEFT || TA_TOP);
+    pDC->SetTextAlign(TA_LEFT | TA_TOP);  // richtig
     pDC->TextOut(x + length + 2, y - 30, buffer);
 
     CSize textSize(pDC->GetTextExtent(buffer, (int)strlen(buffer)));

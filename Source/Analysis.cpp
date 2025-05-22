@@ -49,7 +49,7 @@ Matrix::~Matrix()
 {
     if (_data != NULL)
     {
-        delete _data;
+        delete[] _data;
         _data = NULL;
     }
 }

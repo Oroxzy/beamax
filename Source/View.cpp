@@ -116,7 +116,8 @@ void View::OnDraw(CDC* pDrawDC)
     }
 
     // draw all the things
-    pDC->FillRect(rectLogical, new CBrush(::GetSysColor(COLOR_WINDOW)));
+    CBrush brush(::GetSysColor(COLOR_WINDOW));
+    pDC->FillRect(rectLogical, &brush);
     Draw(pDC, pDrawDC);
 
     // BitBlt Bitmap into View
