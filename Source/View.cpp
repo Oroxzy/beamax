@@ -253,8 +253,13 @@ void View::Draw(CDC* pDC, CDC* pDrawDC)
                         double pos = support->GetPosition();
 
                         double reaction = _document->GetSupportReactionAt(pos);
+                        double maxReaction = _document->GetMaxReaction();
 
-                        DrawValue(pDC, beamX + (int)(pos * scaleX), beamY + 12, FALSE, reaction);
+                        bool isMax = (fabs(maxReaction) > EPSILON) && (fabs(reaction) >= fabs(maxReaction) - 1e-6);
+                        COLORREF color = isMax ? RGB(255, 0, 0) : RGB(0, 0, 0);
+
+                        DrawValue(pDC, beamX + (int)(pos * scaleX), beamY + 12, FALSE, reaction, color);
+                        pDC->SetTextColor(RGB(0, 0, 0));
                     }
                 }
             }
@@ -279,6 +284,7 @@ void View::Draw(CDC* pDC, CDC* pDrawDC)
             int x = beamX + (int)(_document->_beamLength * scaleX) + 10;
             int y = beamY + 4;  // direkt unterhalb vom Strich (Balkenlinie)
 
+            pDC->SetTextColor(RGB(0, 0, 0));  // Farbe zurücksetzen auf schwarz
             pDC->TextOut(x, y, rmaxLabel);
         }
 
@@ -835,7 +841,7 @@ BOOL View::IsRectEmpty(CDC* pDC, int x1, int y1, int x2, int y2)
     return TRUE;
 }
 
-void View::DrawValue(CDC* pDC, int x, int y, BOOL mirror, double value)
+void View::DrawValue(CDC* pDC, int x, int y, BOOL mirror, double value, COLORREF color)
 {
     char buffer[32];
     sprintf_s(buffer, "%.2f", value);
@@ -843,14 +849,17 @@ void View::DrawValue(CDC* pDC, int x, int y, BOOL mirror, double value)
     int x1 = x - (textSize.cx / 2);
     int x2 = x + (textSize.cx / 2);
     if (mirror) value *= (-1);
+
+    pDC->SetTextColor(color);  // Farbe setzen!
+
     if (value < 0)
     {
         pDC->SetTextAlign(TA_CENTER | TA_BOTTOM);
         int y1 = y - textSize.cy;
         int y2 = y;
-        for (int i = 2; i <= 12; i = i + 6)
+        for (int i = 2; i <= 12; i += 6)
         {
-            if (IsRectEmpty(pDC, x1, y1 - i, x2, y2 - i) == TRUE)
+            if (IsRectEmpty(pDC, x1, y1 - i, x2, y2 - i))
             {
                 pDC->TextOut(x, y - i, buffer);
                 return;
@@ -862,9 +871,9 @@ void View::DrawValue(CDC* pDC, int x, int y, BOOL mirror, double value)
         pDC->SetTextAlign(TA_CENTER | TA_TOP);
         int y1 = y;
         int y2 = y + textSize.cy;
-        for (int i = 2; i <= 12; i = i + 6)
+        for (int i = 2; i <= 12; i += 6)
         {
-            if (IsRectEmpty(pDC, x1, y1 + i, x2, y2 + i) == TRUE)
+            if (IsRectEmpty(pDC, x1, y1 + i, x2, y2 + i))
             {
                 pDC->TextOut(x, y + i, buffer);
                 return;
@@ -894,12 +903,17 @@ void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeigh
     // print unit name
     char label[64];
 
-    // Einheit + Maxwert bestimmen
+    // Farbvergleichswert für Maximalwert markieren
+    double maxForColor = 0.0;
+
+    // Einheit + Maxwert bestimmen für Anzeige
     if (strcmp(viewName, "FZ") == 0) {
-        sprintf_s(label, "[kN]  Qmax = %.2f", _document->GetMaxShear());
+        maxForColor = _document->GetMaxShear();
+        sprintf_s(label, "[kN]  Qmax = %.2f", maxForColor);
     }
     else if (strcmp(viewName, "MY") == 0) {
-        sprintf_s(label, "[kNm]  Mmax = %.2f", _document->GetMaxMoment());
+        maxForColor = _document->GetMaxMoment();
+        sprintf_s(label, "[kNm]  Mmax = %.2f", maxForColor);
     }
     else if (strcmp(viewName, "UZ") == 0) {
         double maxW = 0.0;
@@ -915,6 +929,7 @@ void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeigh
             }
         }
 
+        maxForColor = maxW;
         sprintf_s(label, "[mm]  wmax = %.2f", maxW * 1000.0);  // korrekt in mm
     }
     else {
@@ -925,7 +940,7 @@ void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeigh
     pDC->TextOut(beamX + (int)(_document->_beamLength * scaleX) + 12, beamY - (textSize.cy / 2), label);
 
     // find maximum value for scaling
-    double maximum = 0;
+    double maximum = 0.0;
     position = sectionList->GetHeadPosition();
     while (position != NULL)
     {
@@ -1017,22 +1032,49 @@ void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeigh
                 y = SolvePolynom(0, object);
                 if (fabs(y) > EPSILON)
                 {
-                    DrawValue(pDC, beamX + (int)(object->Start * scaleX), beamY + (int)(y * scaleY), mirror, y * unitScale);
+                    bool isMax = fabs(y) >= fabs(maxForColor) - 1e-6;
+                    COLORREF color = isMax ? RGB(255, 0, 0) : RGB(0, 0, 0);
+
+                    DrawValue(
+                        pDC,
+                        beamX + (int)(object->Start * scaleX),
+                        beamY + (int)(y * scaleY),
+                        mirror,
+                        y * unitScale,
+                        color);
                 }
 
-                // draw maximum value
+                // draw value at local extremum (GetMaximum)
                 x = GetMaximum(object);
                 y = SolvePolynom(x, object);
                 if ((fabs(y) > EPSILON) && (!mirror))
                 {
-                    DrawValue(pDC, beamX + (int)((object->Start + x) * scaleX), beamY + (int)(y * scaleY), mirror, y * unitScale);
+                    bool isMax = fabs(y) >= fabs(maxForColor) - 1e-6;
+                    COLORREF color = isMax ? RGB(255, 0, 0) : RGB(0, 0, 0);
+
+                    DrawValue(
+                        pDC,
+                        beamX + (int)((object->Start + x) * scaleX),
+                        beamY + (int)(y * scaleY),
+                        mirror,
+                        y * unitScale,
+                        color);
                 }
 
                 // draw right value
                 y = SolvePolynom(object->Length, object);
                 if (fabs(y) > EPSILON)
                 {
-                    DrawValue(pDC, beamX + (int)((object->Start + object->Length) * scaleX), beamY + (int)(y * scaleY), mirror, y * unitScale);
+                    bool isMax = fabs(y) >= fabs(maxForColor) - 1e-6;
+                    COLORREF color = isMax ? RGB(255, 0, 0) : RGB(0, 0, 0);
+
+                    DrawValue(
+                        pDC,
+                        beamX + (int)((object->Start + object->Length) * scaleX),
+                        beamY + (int)(y * scaleY),
+                        mirror,
+                        y * unitScale,
+                        color);
                 }
             }
         }

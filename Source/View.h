@@ -63,7 +63,7 @@ protected:
     inline BOOL IsRectEmpty(CDC* pDC, int x1, int y1, int x2, int y2);
     void LPtoDP(CRect& rect);
     void Draw(CDC* pDC, CDC* pDrawDC);
-    void DrawValue(CDC* pDC, int x, int y, BOOL mirror, double value);
+    void DrawValue(CDC* pDC, int x, int y, BOOL mirror, double value, COLORREF color);
     void DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeight, BOOL mirror, BOOL values, double unit, char* unitName, char* viewName, CObList* sectionList);
     void DrawResults(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeight, int views);
 
