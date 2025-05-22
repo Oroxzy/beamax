@@ -6,6 +6,9 @@
 #include "Document.h"
 #include "View.h"
 #include <gdiplus.h>
+#include <vector>
+#include <string>
+#include <set>
 using namespace Gdiplus;
 #pragma comment(lib, "gdiplus.lib")
 
@@ -606,6 +609,7 @@ void View::OnDelete(void)
     {
         _document->DeleteObject((ObjectCast*)_document->_selected);
         _document->_selected = NULL;
+        _document->Analyse();  // <--- Das fehlte vermutlich
     }
 
     _document->UpdateAllViews(NULL);
@@ -845,43 +849,44 @@ BOOL View::IsRectEmpty(CDC* pDC, int x1, int y1, int x2, int y2)
 
 void View::DrawValue(CDC* pDC, int x, int y, BOOL mirror, double value, COLORREF color)
 {
+    if (mirror) value *= -1;
+
     char buffer[32];
     sprintf_s(buffer, "%.2f", value);
-    CSize textSize(pDC->GetTextExtent(buffer, (int)strlen(buffer)));
-    int x1 = x - (textSize.cx / 2);
-    int x2 = x + (textSize.cx / 2);
-    if (mirror) value *= (-1);
 
-    pDC->SetTextColor(color);  // Farbe setzen!
+    CSize textSize = pDC->GetTextExtent(buffer, (int)strlen(buffer));
+    int x1 = x - textSize.cx / 2;
+    int x2 = x + textSize.cx / 2;
 
-    if (value < 0)
+    pDC->SetTextColor(color);
+
+    const int maxTries = 6;
+    const int spacing = 14;
+
+    // Richtungspriorität: positiver Wert => unten (TOP), negativer => oben (BOTTOM)
+    bool preferBottom = value >= 0;
+
+    for (int i = 0; i < maxTries; ++i)
     {
-        pDC->SetTextAlign(TA_CENTER | TA_BOTTOM);
-        int y1 = y - textSize.cy;
-        int y2 = y;
-        for (int i = 2; i <= 12; i += 6)
+        bool tryBottom = (i % 2 == 0) ? preferBottom : !preferBottom;
+        int offset = ((i + 1) / 2) * spacing;
+
+        int yTry = tryBottom ? y + offset : y - offset;
+        int y1 = tryBottom ? yTry : yTry - textSize.cy;
+        int y2 = tryBottom ? yTry + textSize.cy : yTry;
+
+        pDC->SetTextAlign(TA_CENTER | (tryBottom ? TA_TOP : TA_BOTTOM));
+
+        if (IsRectEmpty(pDC, x1, y1, x2, y2))
         {
-            if (IsRectEmpty(pDC, x1, y1 - i, x2, y2 - i))
-            {
-                pDC->TextOut(x, y - i, buffer);
-                return;
-            }
+            pDC->TextOut(x, yTry, buffer);
+            return;
         }
     }
-    else
-    {
-        pDC->SetTextAlign(TA_CENTER | TA_TOP);
-        int y1 = y;
-        int y2 = y + textSize.cy;
-        for (int i = 2; i <= 12; i += 6)
-        {
-            if (IsRectEmpty(pDC, x1, y1 + i, x2, y2 + i))
-            {
-                pDC->TextOut(x, y + i, buffer);
-                return;
-            }
-        }
-    }
+
+    // Fallback: trotzdem anzeigen, falls keine freie Stelle
+    pDC->SetTextAlign(TA_CENTER | TA_TOP);
+    pDC->TextOut(x, y, buffer);
 }
 
 void View::DrawReactionValue(CDC* pDC, int x, int y, double value, COLORREF color)
@@ -1070,52 +1075,79 @@ void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeigh
             }
         }
 
-        // 2. Schritt: Werte zeichnen, minimaler Betrag in grün
+        std::set<std::pair<int, std::string>> drawnLabels;
+
         position = sectionList->GetHeadPosition();
         while (position != NULL)
         {
             object = (Section*)sectionList->GetNext(position);
-            if (object)
+            if (!object) continue;
+
+            double x, y;
+
+            // --- linker Wert
+            y = SolvePolynom(0, object);
+            if (fabs(y) > EPSILON)
             {
-                double x, y;
+                int xPos = beamX + (int)(object->Start * scaleX);
+                int yPos = beamY + (int)(y * scaleY);
 
-                // left value
-                y = SolvePolynom(0, object);
-                if (fabs(y) > EPSILON)
+                char buf[32];
+                sprintf_s(buf, "%.2f", y * unitScale);
+                std::pair<int, std::string> key(xPos, buf);
+
+                if (drawnLabels.insert(key).second)
                 {
                     bool isMax = fabs(fabs(y) - fabs(maxForColor)) < 1e-6;
                     bool isMin = fabs(fabs(y) - fabs(minShownAbs)) < 1e-6;
-
                     COLORREF color = isMax ? RGB(220, 0, 0) : (isMin ? RGB(0, 200, 0) : RGB(0, 0, 0));
-                    DrawValue(pDC, beamX + (int)(object->Start * scaleX), beamY + (int)(y * scaleY), mirror, y * unitScale, color);
+                    DrawValue(pDC, xPos, yPos, mirror, y * unitScale, color);
                 }
+            }
 
-                // extremum
-                x = GetMaximum(object);
-                y = SolvePolynom(x, object);
-                if (fabs(y) > EPSILON && !mirror)
+            // --- Extremum (nur wenn nicht gespiegelt)
+            x = GetMaximum(object);
+            y = SolvePolynom(x, object);
+            if (fabs(y) > EPSILON && !mirror)
+            {
+                int xPos = beamX + (int)((object->Start + x) * scaleX);
+                int yPos = beamY + (int)(y * scaleY);
+
+                char buf[32];
+                sprintf_s(buf, "%.2f", y * unitScale);
+                std::pair<int, std::string> key(xPos, buf);
+
+                if (drawnLabels.insert(key).second)
                 {
                     bool isMax = fabs(fabs(y) - fabs(maxForColor)) < 1e-6;
                     bool isMin = fabs(fabs(y) - fabs(minShownAbs)) < 1e-6;
-
                     COLORREF color = isMax ? RGB(220, 0, 0) : (isMin ? RGB(0, 200, 0) : RGB(0, 0, 0));
-                    DrawValue(pDC, beamX + (int)((object->Start + x) * scaleX), beamY + (int)(y * scaleY), mirror, y * unitScale, color);
+                    DrawValue(pDC, xPos, yPos, mirror, y * unitScale, color);
                 }
+            }
 
-                // right value
-                y = SolvePolynom(object->Length, object);
-                if (fabs(y) > EPSILON)
+            // --- rechter Wert
+            y = SolvePolynom(object->Length, object);
+            if (fabs(y) > EPSILON)
+            {
+                int xPos = beamX + (int)((object->Start + object->Length) * scaleX);
+                int yPos = beamY + (int)(y * scaleY);
+
+                char buf[32];
+                sprintf_s(buf, "%.2f", y * unitScale);
+                std::pair<int, std::string> key(xPos, buf);
+
+                if (drawnLabels.insert(key).second)
                 {
                     bool isMax = fabs(fabs(y) - fabs(maxForColor)) < 1e-6;
                     bool isMin = fabs(fabs(y) - fabs(minShownAbs)) < 1e-6;
-
                     COLORREF color = isMax ? RGB(220, 0, 0) : (isMin ? RGB(0, 200, 0) : RGB(0, 0, 0));
-                    DrawValue(pDC, beamX + (int)((object->Start + object->Length) * scaleX), beamY + (int)(y * scaleY), mirror, y * unitScale, color);
+                    DrawValue(pDC, xPos, yPos, mirror, y * unitScale, color);
                 }
             }
         }
 
-        pDC->SetTextAlign(oldTextAlign);
+        pDC->SetTextAlign(oldTextAlign);  // <- bleibt am Ende gleich!
     }
 }
 

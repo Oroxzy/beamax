@@ -1029,6 +1029,26 @@ HRESULT Beam::Analyse()
                 {
                     double distance = GetDistance(position, end, isPointLoad);
                     isPointLoad = distance < EPSILON ? FALSE : TRUE;
+
+                    // Punktlasten-Sprung manuell berücksichtigen
+                    if (distance < EPSILON && isPointLoad)
+                    {
+                        double qJump = 0.0;
+
+                        _loads.Reset();
+                        while (!_loads.IsEmpty()) {
+                            LoadNode* l = (LoadNode*)_loads.GetItem();
+                            if (fabs(l->GetStart() - position) < EPSILON && l->GetLength() == 0.0) {
+                                qJump += l->GetLoadVector(0.0)(3, 0); // nur Querkraft
+                            }
+                            if (!_loads.Next()) break;
+                        }
+
+                        // Sprung zur aktuellen Querkraft addieren
+                        state2(3, 0) += qJump;
+                    }
+
+                    // Nur Abschnitt aufbauen, wenn wirklich Strecke vorhanden ist
                     if (distance > EPSILON)
                     {
                         A = Matrix(4, 4);

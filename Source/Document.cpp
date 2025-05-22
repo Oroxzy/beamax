@@ -5,8 +5,8 @@
 #include "Dialog.h"
 #include "Object.h"
 #include "Document.h"
-#include <float.h>
-#include <cfloat>
+#include <cmath>
+
 
 IMPLEMENT_DYNCREATE(Document, CDocument)
 
@@ -269,43 +269,45 @@ BOOL Document::Analyse()
         _displacementList.AddHead((CObject *)displacement);
     } while (result == S_OK);
 
-    // Berechne Maximal- und Minimalwerte für Moment, Querkraft und Reaktion
-    _maxMoment = 0.0;
-    _minMoment = DBL_MAX;
-    _maxShear = 0.0;
-    _minShear = DBL_MAX;
-
-    POSITION p;
-    Section* s;
 
     // Biegemomente: Max/Min aus Polynomen
-    p = _bendingMomentList.GetHeadPosition();
+    _maxMoment = 0.0;
+    _minMoment = DBL_MAX;  // <--- Wichtig!
+
+    POSITION p = _bendingMomentList.GetHeadPosition();
     while (p != NULL) {
-        s = (Section*)_bendingMomentList.GetNext(p);
+        Section* s = (Section*)_bendingMomentList.GetNext(p);
         if (s) {
             for (double x = 0; x <= s->Length; x += 0.01) {
                 double val = s->A4 * pow(x, 4) + s->A3 * pow(x, 3) + s->A2 * x * x + s->A1 * x + s->A0;
 
                 if (fabs(val) > fabs(_maxMoment)) _maxMoment = val;
-                // kleinster sinnvoller Ausschlag (nicht 0, aber kleinster Betrag)
-                if ((fabs(val) < _minMoment || _minMoment == 0.0) && fabs(val) > EPSILON)
-                    _minMoment = fabs(val);
+
+                double absVal = fabs(val);
+                if (absVal > 0.1 && absVal < _minMoment) {
+                    _minMoment = absVal;
+                }
             }
         }
     }
 
     // Querkraft: Max/Min aus linearer Funktion
     p = _shearForceList.GetHeadPosition();
-    while (p != NULL) {
-        s = (Section*)_shearForceList.GetNext(p);
-        if (s) {
-            for (double x = 0; x <= s->Length; x += 0.01) {
-                double val = s->A1 * x + s->A0;
+    _maxShear = 0.0;
+    _minShear = DBL_MAX;
 
-                if (fabs(val) > fabs(_maxShear)) _maxShear = val;
-                if ((fabs(val) < _minShear || _minShear == 0.0) && fabs(val) > EPSILON)
-                    _minShear = fabs(val);
-            }
+    while (p != NULL) {
+        Section* s = (Section*)_shearForceList.GetNext(p);
+        if (s) {
+            // Extremwerte der linearen Funktion Q(x) = A1 * x + A0 liegen am Rand
+            double valStart = s->A0;
+            double valEnd = s->A1 * s->Length + s->A0;
+
+            double maxAbs = fmax(fabs(valStart), fabs(valEnd));
+            double minAbs = fmin(fabs(valStart), fabs(valEnd));
+
+            if (maxAbs > _maxShear) _maxShear = maxAbs;
+            if (minAbs < _minShear && minAbs > EPSILON) _minShear = minAbs;
         }
     }
 
@@ -315,7 +317,7 @@ BOOL Document::Analyse()
     while (!analysis->_sections.IsEmpty())
     {
         SupportNode* node = (SupportNode*)analysis->_sections.GetItem();
-        double pos = round(node->GetPosition() * 1000.0) / 1000.0;
+        double pos = node->GetPosition();
         double R = node->GetForce()(3, 0);
 
         // Suche Punktlasten im Analysemodell
@@ -524,15 +526,13 @@ double Document::GetDisplacement(double position)
 
 double Document::GetSupportReactionAt(double position)
 {
-    position = round(position * 1000.0) / 1000.0;
-
-    for (const auto& it : _supportReactions)
+    for (std::map<double, double>::const_iterator it = _supportReactions.begin(); it != _supportReactions.end(); ++it)
     {
-        if (fabs(it.first - position) < EPSILON)
-            return it.second;
+        if (fabs(it->first - position) < EPSILON)
+        {
+            return it->second;
+        }
     }
-
-    TRACE("WARNUNG: Keine Reaktion gefunden an Position %.6f\n", position);
     return 0.0;
 }
 
