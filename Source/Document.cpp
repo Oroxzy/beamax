@@ -305,7 +305,7 @@ BOOL Document::Analyse()
     while (!analysis->_sections.IsEmpty())
     {
         SupportNode* node = (SupportNode*)analysis->_sections.GetItem();
-        double pos = node->GetPosition();
+        double pos = round(node->GetPosition() * 1000.0) / 1000.0;
         double R = node->GetForce()(3, 0); // initial
 
         // Suche Punktlasten im Analysemodell (nicht im ObjectList!)
@@ -515,13 +515,16 @@ double Document::GetDisplacement(double position)
 
 double Document::GetSupportReactionAt(double position)
 {
-    for (std::map<double, double>::const_iterator it = _supportReactions.begin(); it != _supportReactions.end(); ++it)
+    position = round(position * 1000.0) / 1000.0;
+
+    for (const auto& it : _supportReactions)
     {
-        if (fabs(it->first - position) < EPSILON)
-        {
-            return it->second;
-        }
+        if (fabs(it.first - position) < EPSILON)
+            return it.second;
     }
+
+    TRACE("WARNUNG: Keine Reaktion gefunden an Position %.6f\n", position);
     return 0.0;
 }
+
 

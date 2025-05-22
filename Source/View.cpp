@@ -206,7 +206,7 @@ void View::Draw(CDC* pDC, CDC* pDrawDC)
         CPen* oldPen = pDC->SelectObject(&newPen);
         CFont newFont;
         newFont.CreateFont(
-            -14, 0, 0, 0,              // Höhe: -20 entspricht ca. 14pt
+            -16, 0, 0, 0,              // Höhe: -20 entspricht ca. 14pt
             FW_BOLD, FALSE, FALSE, FALSE,
             ANSI_CHARSET, OUT_DEFAULT_PRECIS,
             CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
@@ -258,7 +258,7 @@ void View::Draw(CDC* pDC, CDC* pDrawDC)
                         bool isMax = (fabs(maxReaction) > EPSILON) && (fabs(reaction) >= fabs(maxReaction) - 1e-6);
                         COLORREF color = isMax ? RGB(255, 0, 0) : RGB(0, 0, 0);
 
-                        DrawValue(pDC, beamX + (int)(pos * scaleX), beamY + 12, FALSE, reaction, color);
+                        DrawReactionValue(pDC, beamX + (int)(pos * scaleX), beamY + 26, reaction, color);
                         pDC->SetTextColor(RGB(0, 0, 0));
                     }
                 }
@@ -880,6 +880,16 @@ void View::DrawValue(CDC* pDC, int x, int y, BOOL mirror, double value, COLORREF
             }
         }
     }
+}
+
+void View::DrawReactionValue(CDC* pDC, int x, int y, double value, COLORREF color)
+{
+    char buffer[32];
+    sprintf_s(buffer, "%.2f", value);
+
+    pDC->SetTextColor(color);
+    pDC->SetTextAlign(TA_CENTER | TA_BASELINE);
+    pDC->TextOut(x, y, buffer);
 }
 
 void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeight, BOOL mirror, BOOL values, double unitScale, char* unitName, char* viewName, CObList* sectionList)

@@ -8,7 +8,8 @@
 
 #define TRUE 1
 #define FALSE 0
-#define EPSILON 0.000001
+#define EPSILON 1e-4  // oder 1e-5, je nach Bedarf
+
 
 class Matrix
 {

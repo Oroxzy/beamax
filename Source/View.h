@@ -64,6 +64,7 @@ protected:
     void LPtoDP(CRect& rect);
     void Draw(CDC* pDC, CDC* pDrawDC);
     void DrawValue(CDC* pDC, int x, int y, BOOL mirror, double value, COLORREF color);
+    void DrawReactionValue(CDC* pDC, int x, int y, double value, COLORREF color);
     void DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeight, BOOL mirror, BOOL values, double unit, char* unitName, char* viewName, CObList* sectionList);
     void DrawResults(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeight, int views);
 
