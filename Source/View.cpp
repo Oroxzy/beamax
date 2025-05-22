@@ -254,12 +254,18 @@ void View::Draw(CDC* pDC, CDC* pDrawDC)
 
                         double reaction = _document->GetSupportReactionAt(pos);
                         double maxReaction = _document->GetMaxReaction();
+                        double minReaction = _document->GetMinReaction();
 
-                        bool isMax = (fabs(maxReaction) > EPSILON) && (fabs(reaction) >= fabs(maxReaction) - 1e-6);
-                        COLORREF color = isMax ? RGB(255, 0, 0) : RGB(0, 0, 0);
+                        double absReaction = fabs(reaction);
+
+                        // Vergleiche mit kleinem Toleranzwert
+                        bool isMax = fabs(absReaction - maxReaction) < 1e-6;
+                        bool isMin = fabs(absReaction - minReaction) < 1e-6;
+
+                        COLORREF color = isMax ? RGB(220, 0, 0) : (isMin ? RGB(0, 200, 0) : RGB(0, 0, 0));
 
                         DrawReactionValue(pDC, beamX + (int)(pos * scaleX), beamY + 26, reaction, color);
-                        pDC->SetTextColor(RGB(0, 0, 0));
+                        pDC->SetTextColor(RGB(0, 0, 0)); // Sicherheit
                     }
                 }
             }
@@ -913,20 +919,24 @@ void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeigh
     // print unit name
     char label[64];
 
-    // Farbvergleichswert für Maximalwert markieren
+    // Farbvergleichswerte initialisieren
     double maxForColor = 0.0;
+    double minForColor = 0.0;
 
-    // Einheit + Maxwert bestimmen für Anzeige
+    // Einheit + Max- & Min-Werte bestimmen für Anzeige & Farbvergleich
     if (strcmp(viewName, "FZ") == 0) {
         maxForColor = _document->GetMaxShear();
-        sprintf_s(label, "[kN]  Qmax = %.2f", maxForColor);
+        minForColor = _document->GetMinShear();  // neu
+        sprintf_s(label, "[kN]  Qmax = %.2f", fabs(maxForColor));  // Anzeige ohne Vorzeichen
     }
     else if (strcmp(viewName, "MY") == 0) {
         maxForColor = _document->GetMaxMoment();
-        sprintf_s(label, "[kNm]  Mmax = %.2f", maxForColor);
+        minForColor = _document->GetMinMoment();  // neu
+        sprintf_s(label, "[kNm]  Mmax = %.2f", fabs(maxForColor));
     }
     else if (strcmp(viewName, "UZ") == 0) {
         double maxW = 0.0;
+        double minW = 0.0;
 
         POSITION pos = sectionList->GetHeadPosition();
         while (pos != NULL) {
@@ -935,12 +945,14 @@ void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeigh
                 for (double x = 0; x <= s->Length; x += 0.01) {
                     double y = s->A4 * pow(x, 4) + s->A3 * pow(x, 3) + s->A2 * x * x + s->A1 * x + s->A0;
                     if (fabs(y) > fabs(maxW)) maxW = y;
+                    if (y < minW) minW = y;
                 }
             }
         }
 
         maxForColor = maxW;
-        sprintf_s(label, "[mm]  wmax = %.2f", maxW * 1000.0);  // korrekt in mm
+        minForColor = minW;
+        sprintf_s(label, "[mm]  wmax = %.2f", fabs(maxW * 1000.0));  // Anzeige in mm, Betrag
     }
     else {
         sprintf_s(label, "%s", unitName);
@@ -1025,71 +1037,88 @@ void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeigh
     // draw numerical values
     if (values)
     {
-        // selecet text align
         UINT oldTextAlign = pDC->SetTextAlign(TA_CENTER | TA_TOP);
 
-        // draw the values
+        // 1. Schritt: kleinsten Betrag aus den gezeigten Werten ermitteln
+        double minShownAbs = 0.0;
+        bool hasMin = false;
+
         position = sectionList->GetHeadPosition();
         while (position != NULL)
         {
             object = (Section*)sectionList->GetNext(position);
-            if (object != NULL)
+            if (object)
             {
-                double x;
                 double y;
 
-                // draw left value
                 y = SolvePolynom(0, object);
-                if (fabs(y) > EPSILON)
+                if (fabs(y) > EPSILON && (!hasMin || fabs(y) < fabs(minShownAbs)))
                 {
-                    bool isMax = fabs(y) >= fabs(maxForColor) - 1e-6;
-                    COLORREF color = isMax ? RGB(255, 0, 0) : RGB(0, 0, 0);
-
-                    DrawValue(
-                        pDC,
-                        beamX + (int)(object->Start * scaleX),
-                        beamY + (int)(y * scaleY),
-                        mirror,
-                        y * unitScale,
-                        color);
+                    minShownAbs = y;
+                    hasMin = true;
                 }
 
-                // draw value at local extremum (GetMaximum)
-                x = GetMaximum(object);
-                y = SolvePolynom(x, object);
-                if ((fabs(y) > EPSILON) && (!mirror))
+                y = SolvePolynom(GetMaximum(object), object);
+                if (fabs(y) > EPSILON && (!hasMin || fabs(y) < fabs(minShownAbs)))
                 {
-                    bool isMax = fabs(y) >= fabs(maxForColor) - 1e-6;
-                    COLORREF color = isMax ? RGB(255, 0, 0) : RGB(0, 0, 0);
-
-                    DrawValue(
-                        pDC,
-                        beamX + (int)((object->Start + x) * scaleX),
-                        beamY + (int)(y * scaleY),
-                        mirror,
-                        y * unitScale,
-                        color);
+                    minShownAbs = y;
+                    hasMin = true;
                 }
 
-                // draw right value
                 y = SolvePolynom(object->Length, object);
-                if (fabs(y) > EPSILON)
+                if (fabs(y) > EPSILON && (!hasMin || fabs(y) < fabs(minShownAbs)))
                 {
-                    bool isMax = fabs(y) >= fabs(maxForColor) - 1e-6;
-                    COLORREF color = isMax ? RGB(255, 0, 0) : RGB(0, 0, 0);
-
-                    DrawValue(
-                        pDC,
-                        beamX + (int)((object->Start + object->Length) * scaleX),
-                        beamY + (int)(y * scaleY),
-                        mirror,
-                        y * unitScale,
-                        color);
+                    minShownAbs = y;
+                    hasMin = true;
                 }
             }
         }
 
-        // restore text align
+        // 2. Schritt: Werte zeichnen, minimaler Betrag in grün
+        position = sectionList->GetHeadPosition();
+        while (position != NULL)
+        {
+            object = (Section*)sectionList->GetNext(position);
+            if (object)
+            {
+                double x, y;
+
+                // left value
+                y = SolvePolynom(0, object);
+                if (fabs(y) > EPSILON)
+                {
+                    bool isMax = fabs(fabs(y) - fabs(maxForColor)) < 1e-6;
+                    bool isMin = fabs(fabs(y) - fabs(minShownAbs)) < 1e-6;
+
+                    COLORREF color = isMax ? RGB(220, 0, 0) : (isMin ? RGB(0, 200, 0) : RGB(0, 0, 0));
+                    DrawValue(pDC, beamX + (int)(object->Start * scaleX), beamY + (int)(y * scaleY), mirror, y * unitScale, color);
+                }
+
+                // extremum
+                x = GetMaximum(object);
+                y = SolvePolynom(x, object);
+                if (fabs(y) > EPSILON && !mirror)
+                {
+                    bool isMax = fabs(fabs(y) - fabs(maxForColor)) < 1e-6;
+                    bool isMin = fabs(fabs(y) - fabs(minShownAbs)) < 1e-6;
+
+                    COLORREF color = isMax ? RGB(220, 0, 0) : (isMin ? RGB(0, 200, 0) : RGB(0, 0, 0));
+                    DrawValue(pDC, beamX + (int)((object->Start + x) * scaleX), beamY + (int)(y * scaleY), mirror, y * unitScale, color);
+                }
+
+                // right value
+                y = SolvePolynom(object->Length, object);
+                if (fabs(y) > EPSILON)
+                {
+                    bool isMax = fabs(fabs(y) - fabs(maxForColor)) < 1e-6;
+                    bool isMin = fabs(fabs(y) - fabs(minShownAbs)) < 1e-6;
+
+                    COLORREF color = isMax ? RGB(220, 0, 0) : (isMin ? RGB(0, 200, 0) : RGB(0, 0, 0));
+                    DrawValue(pDC, beamX + (int)((object->Start + object->Length) * scaleX), beamY + (int)(y * scaleY), mirror, y * unitScale, color);
+                }
+            }
+        }
+
         pDC->SetTextAlign(oldTextAlign);
     }
 }

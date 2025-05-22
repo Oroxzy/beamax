@@ -13,6 +13,10 @@ private:
     double _maxShear;
     double _maxReaction;
 
+    double _minMoment = 0.0;
+    double _minShear = 0.0;
+    double _minReaction = 0.0;
+
 public:
     double _beamLength;
     CObList _objectList;
@@ -33,6 +37,10 @@ public:
     double GetMaxMoment() const { return _maxMoment; }
     double GetMaxShear() const { return _maxShear; }
     double GetMaxReaction() const { return _maxReaction; }
+
+    double GetMinMoment() const { return _minMoment; }
+    double GetMinShear() const { return _minShear; }
+    double GetMinReaction() const { return _minReaction; }
 
     // automation interface
     BOOL CreateBeam(double length, double modulusOfElasticity, double momentOfInertia, double axialArea);
