@@ -233,6 +233,7 @@ void View::Draw(CDC* pDC, CDC* pDrawDC)
             // GDI+ Initialisierung (lokal)
             Graphics graphics(pDC->GetSafeHdc());
             graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+            graphics.SetCompositingQuality(CompositingQualityHighQuality);
 
             // schwarzer Pen, 1 Pixel
             Pen pen(Color(255, 0, 0, 0), 1.5f);  // RGBA (voll Deckkraft, schwarz)
@@ -992,11 +993,12 @@ void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeigh
     // draw the graph
     Graphics graphics(pDC->GetSafeHdc());
     graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+    graphics.SetCompositingQuality(CompositingQualityHighQuality);
 
     // Stifte und Pinsel definieren
-    Pen curvePen(Color(255, 0, 0, 0), 5.0f);           // Schwarze Kurve, volle Deckkraft
     SolidBrush brushRed(Color(80, 255, 0, 0));         // Transparentes Rot
     SolidBrush brushBlue(Color(80, 0, 0, 255));        // Transparentes Blau
+    Pen curvePen(Color(255, 0, 0, 0), 1.5f);           // Schwarze Kurve, volle Deckkraft
 
     position = sectionList->GetHeadPosition();
     while (position != NULL)
@@ -1021,6 +1023,12 @@ void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeigh
                 positivePoints.push_back(pt);
             else
                 negativePoints.push_back(pt);
+        }
+
+        // Linie zeichnen – vor Fläche
+        for (size_t i = 1; i < allPoints.size(); ++i)
+        {
+            graphics.DrawLine(&curvePen, allPoints[i - 1], allPoints[i]);
         }
 
         // Fläche füllen (positive Seite)
