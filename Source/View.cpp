@@ -287,7 +287,7 @@ void View::Draw(CDC* pDC, CDC* pDrawDC)
             pDC->SetTextAlign(TA_LEFT | TA_TOP);
 
             // ⬅️ Position nach rechts vom Balken verschieben
-            int x = beamX + (int)(_document->_beamLength * scaleX) + 10;
+            int x = beamX + (int)(_document->_beamLength * scaleX) + textSize.cx / 4;
             int y = beamY + 4;  // direkt unterhalb vom Strich (Balkenlinie)
 
             pDC->SetTextColor(RGB(0, 0, 0));  // Farbe zurücksetzen auf schwarz
