@@ -39,7 +39,7 @@ BEGIN_MESSAGE_MAP(View, CScrollView)
     ON_COMMAND(ID_FILE_PRINT, CScrollView::OnFilePrint)
 END_MESSAGE_MAP()
 
-View::View()
+View::View() : _document(nullptr)  // <– so wird korrekt initialisiert
 {
     // create popup menu
     _popupMenu = new CMenu;

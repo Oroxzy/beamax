@@ -235,13 +235,28 @@ BEGIN
     PUSHBUTTON      "Cancel",IDCANCEL,82,69,48,14,WS_GROUP | NOT WS_TABSTOP
 END
 
-IDD_ABOUT DIALOGEX 15, 29, 182, 79
+IDD_ABOUT DIALOGEX 15, 29, 260, 140
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "About Beamax"
 FONT 8, "Tahoma"
 BEGIN
-    LTEXT           "Beamax 2.4, edited by jeremymeile@gmail.com\n for dumme Bauschüler",IDC_STATIC,15,8,250,8
-    PUSHBUTTON      "OK",IDOK,124,59,50,14,NOT WS_TABSTOP
+    LTEXT "Beamax 3.0", IDC_STATIC, 15, 8, 230, 10, SS_CENTERIMAGE
+    LTEXT "modified by jeremymeile@gmail.com", IDC_STATIC, 15, 18, 230, 8, SS_CENTERIMAGE
+
+    LTEXT "", IDC_STATIC, 15, 26, 230, 2
+
+    LTEXT "Changelog – Beamax 2.4 to 3.0:", IDC_STATIC, 15, 30, 200, 8
+    LTEXT "- Increased font size (9pt to 16pt)", IDC_STATIC, 15, 38, 230, 8
+    LTEXT "- Anti-aliasing enabled (smoother lines)", IDC_STATIC, 15, 46, 230, 8
+    LTEXT "- Mmax, Qmax, Rmax displayed next to diagrams", IDC_STATIC, 15, 54, 230, 8
+    LTEXT "- Maximum values shown in red", IDC_STATIC, 15, 62, 230, 8
+    LTEXT "- Minimum values (by absolute value) shown in green", IDC_STATIC, 15, 70, 230, 8
+    LTEXT "- Reaction forces are calculated and displayed correctly", IDC_STATIC, 15, 78, 230, 8
+    LTEXT "- DPI awareness enabled (crisper on high-resolution screens)", IDC_STATIC, 15, 86, 230, 8
+    LTEXT "- Smart label placement to avoid overlapping values", IDC_STATIC, 15, 94, 230, 8
+    LTEXT "- Fixed GDI and memory leaks (fonts, pens, graphics)", IDC_STATIC, 15, 102, 230, 8
+
+    PUSHBUTTON "OK", IDOK, 190, 120, 50, 14, NOT WS_TABSTOP
 END
 
 IDD_ROLLER_SUPPORT DIALOGEX 12, 29, 163, 76
