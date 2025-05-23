@@ -989,50 +989,54 @@ void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeigh
 
     // calculate scale for y axis
     double scaleY = (viewHeight / maximum) * 0.36 * (mirror ? -1 : 1);
-
     // draw the graph
-    // GDI+ Objekt für Anti-Aliasing-Kurven
     Graphics graphics(pDC->GetSafeHdc());
     graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-    Pen curvePen(Color(255, 0, 0, 0), 1.5f);  // Schwarz, 1.5px
+
+    // Stifte und Pinsel definieren
+    Pen curvePen(Color(255, 0, 0, 0), 5.0f);           // Schwarze Kurve, volle Deckkraft
+    SolidBrush brushRed(Color(80, 255, 0, 0));         // Transparentes Rot
+    SolidBrush brushBlue(Color(80, 0, 0, 255));        // Transparentes Blau
 
     position = sectionList->GetHeadPosition();
     while (position != NULL)
     {
-        object = (Section*)sectionList->GetNext(position);
-        if (object != NULL)
+        Section* object = (Section*)sectionList->GetNext(position);
+        if (!object) continue;
+
+        double xStartAbs = object->Start;
+        double dx = 1.0 / scaleX;
+
+        std::vector<PointF> positivePoints, negativePoints, allPoints;
+
+        for (double x = 0; x <= object->Length; x += dx)
         {
-            double xStartAbs = object->Start;
-            double dx = (1 / scaleX);
-            bool first = true;
-            PointF lastPoint;
+            double xAbs = xStartAbs + x;
+            double yVal = SolvePolynom(x, object) * scaleY;
+            PointF pt((REAL)(beamX + xAbs * scaleX), (REAL)(beamY + yVal));
 
-            // Startpunkt links
-            PointF startX((REAL)(beamX + xStartAbs * scaleX), (REAL)(beamY));
-            PointF firstVal((REAL)(beamX + xStartAbs * scaleX), (REAL)(beamY + SolvePolynom(0, object) * scaleY));
-            graphics.DrawLine(&curvePen, startX, firstVal);
+            allPoints.push_back(pt);
 
-            // Kurve zeichnen
-            for (double x = 0; x <= object->Length; x += dx)
-            {
-                double xAbs = xStartAbs + x;
-                double yVal = SolvePolynom(x, object) * scaleY;
-                PointF currentPoint((REAL)(beamX + xAbs * scaleX), (REAL)(beamY + yVal));
+            if (yVal >= 0)
+                positivePoints.push_back(pt);
+            else
+                negativePoints.push_back(pt);
+        }
 
-                if (!first)
-                    graphics.DrawLine(&curvePen, lastPoint, currentPoint);
+        // Fläche füllen (positive Seite)
+        if (positivePoints.size() > 1)
+        {
+            positivePoints.insert(positivePoints.begin(), PointF(positivePoints.front().X, (REAL)beamY));
+            positivePoints.push_back(PointF(positivePoints.back().X, (REAL)beamY));
+            graphics.FillPolygon(&brushRed, positivePoints.data(), (INT)positivePoints.size());
+        }
 
-                lastPoint = currentPoint;
-                first = false;
-            }
-
-            // Endpunkt rechts
-            double xEndAbs = xStartAbs + object->Length;
-            double yEnd = SolvePolynom(object->Length, object) * scaleY;
-
-            PointF endVal((REAL)(beamX + xEndAbs * scaleX), (REAL)(beamY + yEnd));
-            PointF endX((REAL)(beamX + xEndAbs * scaleX), (REAL)(beamY));
-            graphics.DrawLine(&curvePen, endVal, endX);
+        // Fläche füllen (negative Seite)
+        if (negativePoints.size() > 1)
+        {
+            negativePoints.insert(negativePoints.begin(), PointF(negativePoints.front().X, (REAL)beamY));
+            negativePoints.push_back(PointF(negativePoints.back().X, (REAL)beamY));
+            graphics.FillPolygon(&brushBlue, negativePoints.data(), (INT)negativePoints.size());
         }
     }
 
