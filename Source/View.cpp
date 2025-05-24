@@ -1030,8 +1030,6 @@ void View::DrawCurves(Graphics& graphics, CObList* sectionList, int beamX, int b
     SolidBrush brushBlue(Color(80, 255, 0, 0));    // Transparente Farbe für negative Fläche
     Pen curvePen(Color(255, 0, 0, 0), 1.5f);       // Linie für Kurve
 
-    bool isShearForce = (strcmp(viewName, "FZ") == 0);
-
     POSITION pos = sectionList->GetHeadPosition();
     while (pos)
     {
@@ -1043,8 +1041,7 @@ void View::DrawCurves(Graphics& graphics, CObList* sectionList, int beamX, int b
 
         for (double x = 0; x <= obj->Length; x += dx)
         {
-            double y = isShearForce ? (obj->A1 * x + obj->A0) * scaleY
-                : SolvePolynom(x, obj) * scaleY;
+            double y = SolvePolynom(x, obj) * scaleY;
 
             PointF pt((REAL)(beamX + (xAbsStart + x) * scaleX), (REAL)(beamY + y));
             if (!first) graphics.DrawLine(&curvePen, lastPt, pt);
@@ -1066,11 +1063,8 @@ void View::DrawCurves(Graphics& graphics, CObList* sectionList, int beamX, int b
             graphics.FillPolygon(&brushBlue, negPts.data(), (INT)negPts.size());
         }
 
-        double yStart = isShearForce ? (obj->A0) * scaleY
-            : SolvePolynom(0, obj) * scaleY;
-
-        double yEnd = isShearForce ? (obj->A1 * obj->Length + obj->A0) * scaleY
-            : SolvePolynom(obj->Length, obj) * scaleY;
+        double yStart = SolvePolynom(0, obj) * scaleY;
+        double yEnd = SolvePolynom(obj->Length, obj) * scaleY;
 
         graphics.DrawLine(&curvePen,
             PointF((REAL)(beamX + xAbsStart * scaleX), (REAL)beamY),

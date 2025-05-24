@@ -596,8 +596,9 @@ int TrapezoidalLoadNode::IsLoadVector(double start, double length)
 
 Matrix& TrapezoidalLoadNode::GetLoadVector(double length)
 {
-    double q0 = _valueStart;
-    double q1 = _valueEnd;
+    double q0 = _valueEnd;
+    double q1 = _valueStart;
+
     double L = length;
 
     _vector = Matrix(4, 1);
@@ -620,7 +621,7 @@ Matrix& TrapezoidalLoadNode::GetLoadVector(double length)
         return _vector;
     }
 
-    // Variable (Trapezförmige) Last: q(x) = q0 + (q1 - q0) * x / L
+    // Trapezlast: q(x) = q0 + (q1 - q0) * x / L
     double dq = (q1 - q0) / L;
 
     // Direkte Integration:
@@ -1086,14 +1087,13 @@ HRESULT Beam::Analyse()
                 double distance = GetDistance(position, end, isPointLoad);
                 isPointLoad = distance < EPSILON ? FALSE : TRUE;
 
-                // Punktlasten-Sprung manuell berücksichtigen
                 if (distance < EPSILON && isPointLoad) {
                     double qJump = 0.0;
                     _loads.Reset();
                     while (!_loads.IsEmpty()) {
                         LoadNode* l = (LoadNode*)_loads.GetItem();
                         if (fabs(l->GetStart() - position) < EPSILON && l->GetLength() == 0.0) {
-                            qJump += l->GetLoadVector(0.0)(3, 0); // nur Querkraft
+                            qJump += l->GetLoadVector(0.0)(3, 0);
                         }
                         if (!_loads.Next()) break;
                     }
@@ -1112,52 +1112,6 @@ HRESULT Beam::Analyse()
                 state2 += L;
 
                 if (distance > EPSILON) {
-                    // Shear force (parabolisch)
-                    Section* Q = new Section;
-                    Q->Start = position;
-                    Q->Length = distance;
-
-                    double q0 = -state1(3, 0);  // Querkraft negativ umdeuten (also Kraft von außen)
-                    double q1 = -state2(3, 0);
-
-                    Q->A4 = 0;
-                    Q->A3 = 0;
-
-                    bool isConstantLoad = false;
-                    _loads.Reset();
-                    while (!_loads.IsEmpty()) {
-                        LoadNode* load = (LoadNode*)_loads.GetItem();
-                        if (load->IsLoadVector(position, distance)) {
-                            // prüfe Trapezlast
-                            if (auto* trap = dynamic_cast<TrapezoidalLoadNode*>(load)) {
-                                if (fabs(trap->GetValueStart() - trap->GetValueEnd()) < 1e-4) {
-                                    isConstantLoad = true;
-                                    break;
-                                }
-                            }
-                            // prüfe konstante Linienlast
-                            else if (dynamic_cast<LineadDistributedLoadNode*>(load)) {
-                                isConstantLoad = true;
-                                break;
-                            }
-                        }
-                        if (!_loads.Next()) break;
-                    }
-
-                    if (isConstantLoad) {
-                        Q->A2 = 0.0;
-                        Q->A1 = -2.0 * q0 / distance;
-                        Q->A0 = q0;
-                    }
-                    else {
-                        Q->A2 = (2.0 * (q0 - q1)) / (distance * distance);
-                        Q->A1 = (-3.0 * q0 + q1) / distance;
-                        Q->A0 = q0;
-                    }
-
-                    _shearForces.Insert(Q);
-
-                    // Bending moment (wie bisher – quadratisch)
                     Section* M = new Section;
                     M->Start = position;
                     M->Length = distance;
@@ -1168,13 +1122,57 @@ HRESULT Beam::Analyse()
                     M->A0 = state1(2, 0);
                     _bendingMoments.Insert(M);
 
-                    // Displacement (wie bisher – korrekt kubisch)
+                    Section* Q = new Section;
+                    Q->Start = position;
+                    Q->Length = distance;
+                    Q->A4 = 0;
+                    Q->A3 = 0;
+
+                    double q0 = 0.0, q1 = 0.0;
+                    bool isTrapez = false;
+                    bool isConst = false;
+
+                    _loads.Reset();
+                    while (!_loads.IsEmpty()) {
+                        LoadNode* load = (LoadNode*)_loads.GetItem();
+                        if (load->IsLoadVector(position, distance)) {
+                            if (auto* trap = dynamic_cast<TrapezoidalLoadNode*>(load)) {
+                                q0 = trap->GetValueStart();
+                                q1 = trap->GetValueEnd();
+                                isTrapez = true;
+                                break;
+                            }
+                            else if (auto* line = dynamic_cast<LineadDistributedLoadNode*>(load)) {
+                                q0 = q1 = line->GetValue();
+                                isConst = true;
+                                break;
+                            }
+                        }
+                        if (!_loads.Next()) break;
+                    }
+
+                    if (isTrapez && fabs(q1 - q0) > 1e-6) {
+                        double dq = (q1 - q0) / distance;
+                        Q->A2 = 0.5 * dq;
+                        Q->A1 = -q0;
+                        Q->A0 = -state1(3, 0);
+                    }
+                    else {
+                        // konstante Linienlast oder keine Info → linearer Verlauf
+                        Q->A2 = 0.0;
+                        Q->A1 = (-state2(3, 0) + state1(3, 0)) / distance;
+                        Q->A0 = -state1(3, 0);
+                    }
+
+                    _shearForces.Insert(Q);
+
                     Section* W = new Section;
                     double Q1 = state1(3, 0) * (-1);
                     double M1 = state1(2, 0) * (-1);
                     double phi1 = state1(1, 0) * _EI;
                     double w1 = state1(0, 0) * _EI;
                     double Q2 = state2(3, 0) * (-1);
+
                     W->Start = position;
                     W->Length = distance;
                     W->A4 = ((Q2 - Q1) / (24.0 * distance)) / _EI;
