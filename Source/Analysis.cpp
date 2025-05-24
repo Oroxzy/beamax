@@ -596,8 +596,8 @@ int TrapezoidalLoadNode::IsLoadVector(double start, double length)
 
 Matrix& TrapezoidalLoadNode::GetLoadVector(double length)
 {
-    double q0 = _valueStart;   // Linienlast am linken Ende
-    double q1 = _valueEnd;     // Linienlast am rechten Ende
+    double q0 = _valueStart;
+    double q1 = _valueEnd;
     double L = length;
 
     _vector = Matrix(4, 1);
@@ -606,30 +606,28 @@ Matrix& TrapezoidalLoadNode::GetLoadVector(double length)
     if (L < EPSILON)
         return _vector;
 
-    // Konstante Linienlast
-    if (fabs(q1 - q0) < EPSILON)
+    if (fabs(q1 - q0) < EPSILON)  // Konstant → exakt wie LineadDistributedLoadNode
     {
-        double q = q0;
-        double L = length;
-
-        _vector(0, 0) = -q * L * L / 12.0; // Moment links
-        _vector(1, 0) = -q * L / 2.0;      // Querkraft links
-        _vector(2, 0) = q * L * L / 12.0;  // Moment rechts
-        _vector(3, 0) = -q * L / 2.0;      // Querkraft rechts
+        double p = L;
+        _vector(3, 0) = q0 * p * (-1.0);
+        p *= L;
+        _vector(2, 0) = q0 * p * (-1.0) / 2;
+        p *= L;
+        _vector(1, 0) = q0 * p / 6;
+        p *= L;
+        _vector(0, 0) = q0 * p / 24;
 
         return _vector;
     }
 
-    // Trapezlast q(x) = q0 + (q1 - q0) * x / L
-    // FEM Lastvektor nach klassischer Literatur
-    double l2 = L * L;
-    double l3 = L * L * L;
+    // Variable (Trapezförmige) Last: q(x) = q0 + (q1 - q0) * x / L
+    double dq = (q1 - q0) / L;
 
-    // Lineare Formeln für Hermite-Balken (4 DOF: [M1, V1, M2, V2])
-    _vector(0, 0) = (q0 * l2 / 20.0) + (q1 * l2 / 30.0);           // Moment links
-    _vector(1, 0) = (7.0 * q0 * L / 20.0) + (3.0 * q1 * L / 20.0); // Querkraft links
-    _vector(2, 0) = -(q0 * l2 / 30.0) - (q1 * l2 / 20.0);          // Moment rechts
-    _vector(3, 0) = (3.0 * q0 * L / 20.0) + (7.0 * q1 * L / 20.0); // Querkraft rechts
+    // Direkte Integration:
+    _vector(3, 0) = (-1.0) * (q0 * L + dq * L * L / 2.0);
+    _vector(2, 0) = (-1.0) * (q0 * L * L / 2.0 + dq * L * L * L / 3.0);
+    _vector(1, 0) = (q0 * L * L * L / 3.0 + dq * L * L * L * L / 4.0);
+    _vector(0, 0) = (q0 * L * L * L * L / 4.0 + dq * L * L * L * L * L / 5.0);
 
     return _vector;
 }
