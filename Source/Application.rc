@@ -257,6 +257,7 @@ BEGIN
     LTEXT "- Fixed GDI and memory leaks (fonts, pens, graphics)", IDC_STATIC, 15, 102, 230, 8
     LTEXT "- Antialiased graph fill areas added (red/blue shading for diagram areas)", IDC_STATIC, 15, 110, 230, 8
     LTEXT "- Negative values now rendered in red, positive values in blue", IDC_STATIC, 15, 118, 230, 8
+    LTEXT "- Linear distributed loads now filled with random pastel colors", IDC_STATIC, 15, 126, 230, 8
 
     PUSHBUTTON "OK", IDOK, 190, 130, 50, 14, NOT WS_TABSTOP
 END
