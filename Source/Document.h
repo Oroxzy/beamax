@@ -48,7 +48,7 @@ public:
     BOOL CreateHingedSupport(double position);
     BOOL CreateRollerSupport(double position);
     BOOL CreatePointLoad(double position, double value);
-    BOOL CreateLinearDistributedLoad(double position, double value, double length);
+    BOOL CreateLinearDistributedLoad(double position, double valueStart, double valueEnd, double length);
     double GetShearForce(double position);
     double GetBendingMoment(double position);
     double GetDisplacement(double position);

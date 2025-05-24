@@ -568,12 +568,13 @@ void View::OnCreateLinearDistributedLoad()
 {
     LinearDistributedLoadDialog dialog;
 
-    dialog.SetPosition(0);
-    dialog.SetValue(1);
-    dialog.SetLength(0);
+    dialog.SetPosition(1.0);
+    dialog.SetValueStart(1.0);
+    dialog.SetValueEnd(1.0);
+    dialog.SetLength(1.0);
     if (dialog.DoModal() == IDOK)
     {
-        if (!_document->CreateLinearDistributedLoad(dialog.GetPosition(), dialog.GetValue(), dialog.GetLength()))
+        if (!_document->CreateLinearDistributedLoad(dialog.GetPosition(), dialog.GetValueStart(), dialog.GetValueEnd(), dialog.GetLength()))
         {
             MessageBox("Could not create linear distributed load.", "Error", MB_OK | MB_ICONSTOP);
         }
@@ -588,7 +589,8 @@ void View::OnEditLinearDistributedLoad()
 
     LinearDistributedLoad* item = (LinearDistributedLoad*)_document->_selected;
     dialog.SetPosition(item->GetPosition());
-    dialog.SetValue(item->GetValue());
+    dialog.SetValueStart(item->GetValueStart());
+    dialog.SetValueEnd(item->GetValueEnd());
     dialog.SetLength(item->GetLength());
     if (dialog.DoModal() == IDOK)
     {
@@ -601,7 +603,8 @@ void View::OnEditLinearDistributedLoad()
         else
         {
             item->SetPosition(position);
-            item->SetValue(dialog.GetValue());
+            item->SetValueStart(dialog.GetValueStart());
+            item->SetValueEnd(dialog.GetValueEnd());
             item->SetLength(length);
             _document->UpdateAllViews(NULL);
         }

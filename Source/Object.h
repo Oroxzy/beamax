@@ -101,17 +101,25 @@ class LinearDistributedLoad : public LoadCast
 
 private:
     BYTE _fillR, _fillG, _fillB;
+    double _valueStart;
+    double _valueEnd;
 
 public:
-    LinearDistributedLoad(); // für Laden via Serialize
-    LinearDistributedLoad(double position, double value, double length); // Konstruktion mit Farbe
+    LinearDistributedLoad(); // für Serialize
+    LinearDistributedLoad(double position, double valueStart, double valueEnd, double length);
 
     virtual void Serialize(CArchive& archive) override;
     virtual void Draw(CDC* pDC, int x, int y, double Scale) override;
     virtual void GetExtent(CDC* pDC, double& Start, double& Length, double Scale) override;
 
     Gdiplus::Color GetFillColor() const;
-};
 
+    // Diese Methoden HIER hinzufügen:
+    void SetValues(double start, double end) { _valueStart = start; _valueEnd = end; }
+    double GetValueStart() const { return _valueStart; }
+    double GetValueEnd() const { return _valueEnd; }
+    void SetValueStart(double value) { _valueStart = value; }
+    void SetValueEnd(double value) { _valueEnd = value; }
+};
 
 #endif

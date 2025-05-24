@@ -1,7 +1,9 @@
-#include "stdafx.h"
+﻿#include "stdafx.h"
 #include "Object.h"
 #include <math.h>
 #include <gdiplus.h>
+#include <algorithm>
+
 using namespace Gdiplus;
 #define PASTELL_MIN 160
 #define PASTELL_SPAN 80
@@ -260,26 +262,26 @@ IMPLEMENT_SERIAL(LinearDistributedLoad, LoadCast, 3);
 LinearDistributedLoad::LinearDistributedLoad()
 {
     _position = 0.0;
-    _value = 0.0;
+    _valueStart = _valueEnd = 0.0;
     _length = 0.0;
     _level = 0;
 
-    _fillR = PASTELL_MIN + rand() % PASTELL_SPAN;
-    _fillG = PASTELL_MIN + rand() % PASTELL_SPAN;
-    _fillB = PASTELL_MIN + rand() % PASTELL_SPAN;
+    _fillR = 160 + rand() % 80;
+    _fillG = 160 + rand() % 80;
+    _fillB = 160 + rand() % 80;
 }
 
-LinearDistributedLoad::LinearDistributedLoad(double position, double value, double length)
+LinearDistributedLoad::LinearDistributedLoad(double position, double valueStart, double valueEnd, double length)
 {
     _position = position;
-    _value = value;
+    _valueStart = valueStart;
+    _valueEnd = valueEnd;
     _length = length;
     _level = 0;
 
-    // Pastellfarbe generieren
-    _fillR = PASTELL_MIN + rand() % PASTELL_SPAN;
-    _fillG = PASTELL_MIN + rand() % PASTELL_SPAN;
-    _fillB = PASTELL_MIN + rand() % PASTELL_SPAN;
+    _fillR = 160 + rand() % 80;
+    _fillG = 160 + rand() % 80;
+    _fillB = 160 + rand() % 80;
 }
 
 Color LinearDistributedLoad::GetFillColor() const
@@ -293,12 +295,12 @@ void LinearDistributedLoad::Serialize(CArchive& ar)
 
     if (ar.IsStoring())
     {
-        ar << _position << _value << _length;
+        ar << _position << _valueStart << _valueEnd << _length;
         ar << _fillR << _fillG << _fillB;
     }
     else
     {
-        ar >> _position >> _value >> _length;
+        ar >> _position >> _valueStart >> _valueEnd >> _length;
         ar >> _fillR >> _fillG >> _fillB;
     }
 }
@@ -309,55 +311,92 @@ void LinearDistributedLoad::Draw(CDC* pDC, int x, int y, double Scale)
     graphics.SetSmoothingMode(SmoothingModeAntiAlias);
     graphics.SetCompositingQuality(CompositingQualityHighQuality);
 
-    char buffer[36];
+    int x0 = x + (int)(_position * Scale);
+    int x1 = x0 + (int)(_length * Scale);
+    int y0 = y - ((_level - 1) * 30);
 
-    x = x + (int)(_position * Scale);
-    y = y - ((_level - 1) * 30);
+    // Skalierung der Höhe
+    const int minHeight = 6;
+    const int maxHeight = 32;
+    const double referenceLoad = 10.0;
 
-    int length = (int)(_length * Scale);
-    int height = 30;
+    auto getHeight = [&](double value) -> int {
+        int h = minHeight + (int)(fabs(value) * (maxHeight - minHeight) / referenceLoad);
+        if (h < minHeight) return minHeight;
+        if (h > maxHeight) return maxHeight;
+        return h;
+        };
 
-    // Bereits gespeicherte Farbe verwenden
-    SolidBrush pastelBrush(Color(FILL_ALPHA, _fillR, _fillG, _fillB));
-    graphics.FillRectangle(&pastelBrush, x, y - height, length, height);
+    int dyStart = getHeight(_valueStart);
+    int dyEnd = getHeight(_valueEnd);
 
-    pDC->MoveTo(x, y - 30);
-    pDC->LineTo(x + length, y - 30);
+    bool isUpward = (_valueStart >= 0 && _valueEnd >= 0);
 
-    pDC->MoveTo(x, y - 30);
-    pDC->LineTo(x, y - 1);
-    pDC->MoveTo(x - 4, y - 9);
-    pDC->LineTo(x, y - 3);
-    pDC->MoveTo(x + 4, y - 9);
-    pDC->LineTo(x, y - 3);
+    int baseY = y0;
+    int topYStart = isUpward ? (y0 - dyStart) : (y0 + dyStart);
+    int topYEnd = isUpward ? (y0 - dyEnd) : (y0 + dyEnd);
 
-    pDC->MoveTo(x + length, y - 30);
-    pDC->LineTo(x + length, y - 1);
-    pDC->MoveTo(x + length - 4, y - 9);
-    pDC->LineTo(x + length, y - 3);
-    pDC->MoveTo(x + length + 4, y - 9);
-    pDC->LineTo(x + length, y - 3);
+    // Trapez füllen
+    PointF trapezoid[4] = {
+        PointF((REAL)x0, (REAL)y0),
+        PointF((REAL)x0, (REAL)topYStart),
+        PointF((REAL)x1, (REAL)topYEnd),
+        PointF((REAL)x1, (REAL)y0),
+    };
 
-    double DX = (_length / (((double)length / 9) + 1));
-    double XC = 0;
-    XC += DX;
+    SolidBrush fill(Color(100, _fillR, _fillG, _fillB));
+    Pen border(Color(255, 0, 0, 0), 1.0f);
+    graphics.FillPolygon(&fill, trapezoid, 4);
+    graphics.DrawPolygon(&border, trapezoid, 4);
 
-    while ((XC * Scale) < (length - 1))
+    // Vertikale Linien entlang der Trapezform (ohne Pfeil)
+    int arrowCount = min(24, (int)(_length * Scale / 12));
+    for (int i = 1; i <= arrowCount; ++i)
     {
-        pDC->MoveTo(x + ((int)(XC * Scale)), y - 27);
-        pDC->LineTo(x + ((int)(XC * Scale)), y - 4);
-        XC += DX;
+        double rel = (double)i / (arrowCount + 1);
+        int xi = x0 + (int)((_length * rel) * Scale);
+
+        // Interpolation zwischen topYStart und topYEnd
+        int yi = (int)((1.0 - rel) * topYStart + rel * topYEnd);
+
+        pDC->MoveTo(xi, y0);
+        pDC->LineTo(xi, yi);
     }
 
-    sprintf_s(buffer, "%.2f", _value);
+    // Pfeilspitzen NUR an den Enden (x0, x1)
+    auto drawArrow = [&](int xArrow, int dyVal, bool upward) {
+        int tip = upward ? (y0 - dyVal) : (y0 + dyVal);
+        pDC->MoveTo(xArrow, y0);
+        pDC->LineTo(xArrow, tip);
+
+        if (upward) {
+            pDC->MoveTo(xArrow - 3, tip + 5);
+            pDC->LineTo(xArrow, tip);
+            pDC->MoveTo(xArrow + 3, tip + 5);
+            pDC->LineTo(xArrow, tip);
+        }
+        else {
+            pDC->MoveTo(xArrow - 3, tip - 5);
+            pDC->LineTo(xArrow, tip);
+            pDC->MoveTo(xArrow + 3, tip - 5);
+            pDC->LineTo(xArrow, tip);
+        }
+        };
+
+    drawArrow(x0, dyStart, isUpward);
+    drawArrow(x1, dyEnd, isUpward);
+
+    // Textanzeige (rechts)
+    char buffer[64];
+    sprintf_s(buffer, "%.2f -> %.2f", _valueStart, _valueEnd);
     pDC->SetTextAlign(TA_LEFT | TA_TOP);
-    pDC->TextOut(x + length + 2, y - 30, buffer);
+    pDC->TextOut(x1 + 4, y0 - maxHeight, buffer);
 
-    CSize textSize(pDC->GetTextExtent(buffer, (int)strlen(buffer)));
-
-    _boundRect = CRectTracker(CRect(x - 9, y - 34,
-        x + length + textSize.cx + 7, y + 4),
-        CRectTracker::dottedLine);
+    CSize textSize = pDC->GetTextExtent(buffer);
+    _boundRect = CRectTracker(
+        CRect(x0 - 9, y0 - maxHeight - 4, x1 + textSize.cx + 7, y0 + 4),
+        CRectTracker::dottedLine
+    );
 }
 
 void LinearDistributedLoad::GetExtent(CDC* pDC, double& Start,

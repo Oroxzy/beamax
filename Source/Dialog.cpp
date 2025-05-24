@@ -153,37 +153,10 @@ double PointLoadDialog::GetValue()
 void LinearDistributedLoadDialog::DoDataExchange(CDataExchange* pDX)
 {
     CDialog::DoDataExchange(pDX);
+
     DDX_Text(pDX, IDC_POSITION, _position);
-    DDX_Text(pDX, IDC_VALUE, _value);
     DDX_Text(pDX, IDC_LENGTH, _length);
+    DDX_Text(pDX, IDC_VALUE_START, _valueStart);
+    DDX_Text(pDX, IDC_VALUE_END, _valueEnd);
 }
 
-void LinearDistributedLoadDialog::SetPosition(double value)
-{
-    _position = value;
-}
-
-double LinearDistributedLoadDialog::GetPosition()
-{
-    return _position;
-}
-
-void LinearDistributedLoadDialog::SetValue(double value)
-{
-    _value = value;
-}
-
-double LinearDistributedLoadDialog::GetValue()
-{
-    return _value;
-}
-
-void LinearDistributedLoadDialog::SetLength(double value)
-{
-    _length = value;
-}
-
-double LinearDistributedLoadDialog::GetLength()
-{
-    return _length;
-}

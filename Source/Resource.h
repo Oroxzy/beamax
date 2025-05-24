@@ -23,6 +23,8 @@
 #define IDC_MOMENT_OF_INERTIA           1009
 #define IDC_VALUE                       1009
 #define IDC_AXIAL_AREA                  1010
+#define IDC_VALUE_START                 1011
+#define IDC_VALUE_END                   1012
 #define IDM_ABOUT                       40001
 #define IDM_VIEW_CONTINUOUS_BEAM        40002
 #define IDM_VIEW_SHEAR_FORCE            40003
@@ -48,7 +50,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        104
 #define _APS_NEXT_COMMAND_VALUE         40025
-#define _APS_NEXT_CONTROL_VALUE         1011
+#define _APS_NEXT_CONTROL_VALUE         1013
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -121,22 +121,29 @@ protected:
 class LinearDistributedLoadDialog : public CDialog
 {
     double _position;
-    double _value;
+    double _valueStart;
+    double _valueEnd;
     double _length;
 
 public:
     LinearDistributedLoadDialog() : CDialog(LinearDistributedLoadDialog::IDD)
     {
         _position = 0.0;
-        _value = 0.0;
+        _valueStart = 0.0;
+        _valueEnd = 0.0;
         _length = 0.0;
     }
-    void SetPosition(double value);
-    double GetPosition();
-    void SetValue(double value);
-    double GetValue();
-    void SetLength(double value);
-    double GetLength();
+
+    void SetPosition(double value) { _position = value; }
+    double GetPosition() const { return _position; }
+
+    void SetValueStart(double value) { _valueStart = value; }
+    void SetValueEnd(double value) { _valueEnd = value; }
+    double GetValueStart() const { return _valueStart; }
+    double GetValueEnd() const { return _valueEnd; }
+
+    void SetLength(double value) { _length = value; }
+    double GetLength() const { return _length; }
 
     enum { IDD = IDD_LINEAR_DISTRIBUTED_LOAD };
 

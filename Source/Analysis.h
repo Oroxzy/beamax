@@ -168,6 +168,19 @@ struct Section
     double A4;
 };
 
+class TrapezoidalLoadNode : public LoadNode
+{
+private:
+    double _valueStart;
+    double _valueEnd;
+    Matrix _vector;
+
+public:
+    TrapezoidalLoadNode(double start, double length, double vStart, double vEnd);
+    double GetDistance(double start);
+    int IsLoadVector(double start, double length);
+    Matrix& GetLoadVector(double length);
+};
 
 class Beam
 {
@@ -205,7 +218,7 @@ public:
     HRESULT __stdcall CreateHingedSupport(double position);
     HRESULT __stdcall CreateRollerSupport(double position);
     HRESULT __stdcall CreatePointLoad(double position, double value);
-    HRESULT __stdcall CreateLinearDistributedLoad(double position, double value, double length);
+    HRESULT __stdcall CreateLinearDistributedLoad(double position, double valueStart, double valueEnd, double length);
     HRESULT __stdcall Analyse();
     HRESULT __stdcall GetNextSection(Section* shearForce, Section* bendingMoment, Section* displacement);
 };

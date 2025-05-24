@@ -238,7 +238,10 @@ BOOL Document::Analyse()
                 analysis->CreatePointLoad(pos, val);
             }
             if (CLASSOF(object, "LinearDistributedLoad"))
-                analysis->CreateLinearDistributedLoad(((LoadCast*)object)->GetPosition(), ((LoadCast*)object)->GetValue(), ((LoadCast*)object)->GetLength());
+            {
+                LinearDistributedLoad* ldl = (LinearDistributedLoad*)object;
+                analysis->CreateLinearDistributedLoad(ldl->GetPosition(), ldl->GetValueStart(), ldl->GetValueEnd(), ldl->GetLength());
+            }
         }
     }
 
@@ -435,30 +438,28 @@ BOOL Document::CreatePointLoad(double position, double value)
     return TRUE;
 }
 
-BOOL Document::CreateLinearDistributedLoad(double position, double value,
-    double length)
+BOOL Document::CreateLinearDistributedLoad(double position, double valueStart, double valueEnd, double length)
 {
-    LoadCast* loadObject = NULL;
+    LinearDistributedLoad* loadObject = new LinearDistributedLoad(position, valueStart, valueEnd, length);
+    if (!loadObject)
+        return FALSE;
+
     if ((length < 0) || (position < 0) || ((position + length) > _beamLength))
     {
+        delete loadObject;
         return FALSE;
     }
-    loadObject = new LinearDistributedLoad;
-    if (loadObject == NULL)
-    {
-        return FALSE;
-    }
-    loadObject->SetValue(value);
-    loadObject->SetPosition(position);
-    loadObject->SetLength(length);
+
     if (!InsertObject(loadObject))
     {
         delete loadObject;
         return FALSE;
     }
+
     _selected = loadObject;
     return TRUE;
 }
+
 
 double Document::GetShearForce(double position)
 {

@@ -569,6 +569,50 @@ int LineadDistributedLoadNode::IsLoadVector(double start, double length)
     return FALSE;
 }
 
+TrapezoidalLoadNode::TrapezoidalLoadNode(double start, double length, double vStart, double vEnd)
+{
+    _start = start;
+    _length = length;
+    _valueStart = vStart;
+    _valueEnd = vEnd;
+    _vector = Matrix(4, 1);
+}
+
+double TrapezoidalLoadNode::GetDistance(double start)
+{
+    if (fabs(start - GetStart()) < EPSILON) return GetLength();
+    double end = GetStart() + GetLength();
+    if (fabs(start - end) < EPSILON || start > end) return -1.0;
+    if (start < GetStart()) return GetStart() - start;
+    return end - start;
+}
+
+int TrapezoidalLoadNode::IsLoadVector(double start, double length)
+{
+    return (length > EPSILON) &&
+        (start >= _start - EPSILON) &&
+        (start <= (_start + _length - EPSILON));
+}
+
+Matrix& TrapezoidalLoadNode::GetLoadVector(double length)
+{
+    double q0 = _valueStart;
+    double q1 = _valueEnd;
+    double l = _length;
+
+    double R = (q0 + q1) * l / 2.0;
+    double a = l * q1 / (q0 + q1);
+    double M = R * a;
+
+    _vector = Matrix(4, 1);
+    _vector(0, 0) = 0.0;
+    _vector(1, 0) = 0.0;
+    _vector(2, 0) = -R;
+    _vector(3, 0) = -M;
+
+    return _vector;
+}
+
 void Beam::InsertSupport(SupportNode* support)
 {
     int Eingefuegt = FALSE;
@@ -975,9 +1019,9 @@ HRESULT __stdcall Beam::CreatePointLoad(double position, double value)
     return S_OK;
 }
 
-HRESULT Beam::CreateLinearDistributedLoad(double position, double value, double length)
+HRESULT Beam::CreateLinearDistributedLoad(double position, double valueStart, double valueEnd, double length)
 {
-    LineadDistributedLoadNode* obj = new LineadDistributedLoadNode(position, length, value);
+    TrapezoidalLoadNode* obj = new TrapezoidalLoadNode(position, length, valueStart, valueEnd);
     InsertLoad(obj);
     return S_OK;
 }
@@ -1139,4 +1183,6 @@ HRESULT Beam::GetNextSection(Section* shearForce, Section* bendingMoment, Sectio
         return S_OK;
     }
     return S_FALSE;
+    AfxMessageBox("GetNextSection false.");
+
 }
