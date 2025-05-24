@@ -9,6 +9,7 @@
 #include <vector>
 #include <string>
 #include <set>
+#include <cmath>
 using namespace Gdiplus;
 #pragma comment(lib, "gdiplus.lib")
 
@@ -901,280 +902,248 @@ void View::DrawReactionValue(CDC* pDC, int x, int y, double value, COLORREF colo
     pDC->TextOut(x, y, buffer);
 }
 
+
+// DrawView.cpp
+#include "View.h"
+#include <cmath>
+#include <set>
+#include <vector>
+#include <gdiplus.h>
+using namespace Gdiplus;
+
+#define EPSILON 1e-6
+
+// Hauptfunktion zum Zeichnen einer Ansicht mit Beschriftung, Farbflächen und Werten
 void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeight, BOOL mirror, BOOL values, double unitScale, char* unitName, char* viewName, CObList* sectionList)
 {
-    POSITION position;
-    Section* object;
+    // Zeichnet die horizontale Linie des Trägers
+    DrawBeam(pDC, beamX, beamY, scaleX);
 
-    // draw the beam
-    pDC->MoveTo(beamX, beamY);
-    pDC->LineTo(beamX + (int)(_document->_beamLength * scaleX), beamY);
+    // Zeichnet den Namen der Ansicht mit Rahmen
+    DrawViewName(pDC, beamX, beamY, viewName);
 
-    // print view name
-    CSize textSize(pDC->GetTextExtent(viewName, (int)strlen(viewName)));
-    pDC->MoveTo(beamX - textSize.cx - 20, beamY - (textSize.cy / 2) - 3);
-    pDC->LineTo(beamX - 12, beamY - (textSize.cy / 2) - 3);
-    pDC->LineTo(beamX - 12, beamY + (textSize.cy / 2) + 3);
-    pDC->LineTo(beamX - textSize.cx - 20, beamY + (textSize.cy / 2) + 3);
-    pDC->LineTo(beamX - textSize.cx - 20, beamY - (textSize.cy / 2) - 3);
-    pDC->TextOut(beamX - textSize.cx - 16, beamY - (textSize.cy / 2), viewName);
-
-    // print unit name
-    char label[64];
-
-    // Farbvergleichswerte initialisieren
+    // Ermittelt Einheitstext und Extremwerte für spätere Verwendung
     double maxForColor = 0.0;
     double minForColor = 0.0;
+    CString unitLabel = GetUnitLabel(viewName, unitName, sectionList, maxForColor, minForColor);
 
-    // Einheit + Max- & Min-Werte bestimmen für Anzeige & Farbvergleich
-    if (strcmp(viewName, "FZ") == 0) {
-        maxForColor = _document->GetMaxShear();
-        minForColor = _document->GetMinShear();  // neu
-        sprintf_s(label, "[kN]  Qmax = %.2f", fabs(maxForColor));  // Anzeige ohne Vorzeichen
-    }
-    else if (strcmp(viewName, "MY") == 0) {
-        maxForColor = _document->GetMaxMoment();
-        minForColor = _document->GetMinMoment();  // neu
-        sprintf_s(label, "[kNm]  Mmax = %.2f", fabs(maxForColor));
-    }
-    else if (strcmp(viewName, "UZ") == 0) {
-        double maxW = 0.0;
-        double minW = 0.0;
+    // Zeichnet den Einheiten-Text am rechten Rand
+    DrawUnitLabel(pDC, beamX, beamY, scaleX, unitLabel);
 
-        POSITION pos = sectionList->GetHeadPosition();
-        while (pos != NULL) {
-            Section* s = (Section*)sectionList->GetNext(pos);
-            if (s) {
-                for (double x = 0; x <= s->Length; x += 0.01) {
-                    double y = s->A4 * pow(x, 4) + s->A3 * pow(x, 3) + s->A2 * x * x + s->A1 * x + s->A0;
-                    if (fabs(y) > fabs(maxW)) maxW = y;
-                    if (y < minW) minW = y;
-                }
-            }
-        }
-
-        maxForColor = maxW;
-        minForColor = minW;
-        sprintf_s(label, "[mm]  wmax = %.2f", fabs(maxW * 1000.0));  // Anzeige in mm, Betrag
-    }
-    else {
-        sprintf_s(label, "%s", unitName);
-    }
-
-    textSize = pDC->GetTextExtent(label, (int)strlen(label));
-    pDC->TextOut(beamX + (int)(_document->_beamLength * scaleX) + 12, beamY - (textSize.cy / 2), label);
-
-    // find maximum value for scaling
-    double maximum = 0.0;
-    position = sectionList->GetHeadPosition();
-    while (position != NULL)
-    {
-        object = (Section*)sectionList->GetNext(position);
-        if (object != NULL)
-        {
-            double x = GetMaximum(object);
-            if (maximum < fabs(SolvePolynom(x, object)))
-            {
-                maximum = fabs(SolvePolynom(x, object));
-            }
-            if (maximum < fabs(SolvePolynom(0, object)))
-            {
-                maximum = fabs(SolvePolynom(0, object));
-            }
-            if (maximum < fabs(SolvePolynom(object->Length, object)))
-            {
-                maximum = fabs(SolvePolynom(object->Length, object));
-            }
-        }
-    }
-
-    // calculate scale for y axis
+    // Berechnet den größten darzustellenden Betrag zur Skalierung in Y-Richtung
+    double maximum = CalculateMaxValue(sectionList);
     double scaleY = (viewHeight / maximum) * 0.36 * (mirror ? -1 : 1);
 
-    // GDI+ vorbereiten
+    // Initialisiert GDI+ für hochwertige Grafikdarstellung
     Graphics graphics(pDC->GetSafeHdc());
     graphics.SetSmoothingMode(SmoothingModeAntiAlias);
     graphics.SetCompositingQuality(CompositingQualityHighQuality);
 
-    SolidBrush brushRed(Color(80, 0, 0, 255));   // Blau transparent (jetzt für positiv)
-    SolidBrush brushBlue(Color(80, 255, 0, 0));  // Rot transparent (jetzt für negativ)
-    Pen curvePen(Color(255, 0, 0, 0), 1.5f);     // Schwarze Kurve
+    // Zeichnet die Kurven (inkl. Fläche, Start/Endlinien)
+    DrawCurves(graphics, sectionList, beamX, beamY, scaleX, scaleY);
 
-    position = sectionList->GetHeadPosition();
-    while (position != NULL)
-    {
-        Section* object = (Section*)sectionList->GetNext(position);
-        if (!object) continue;
-
-        double xStartAbs = object->Start;
-        double dx = 1.0 / scaleX;
-        std::vector<PointF> positivePoints, negativePoints;
-        bool first = true;
-        PointF lastPoint;
-
-        for (double x = 0; x <= object->Length; x += dx)
-        {
-            double xAbs = xStartAbs + x;
-            double yVal = SolvePolynom(x, object) * scaleY;
-            PointF currentPoint((REAL)(beamX + xAbs * scaleX), (REAL)(beamY + yVal));
-
-            // Linie zeichnen
-            if (!first)
-                graphics.DrawLine(&curvePen, lastPoint, currentPoint);
-            lastPoint = currentPoint;
-            first = false;
-
-            // Flächenpunkte erfassen
-            if (yVal >= 0)
-                positivePoints.push_back(currentPoint);
-            else
-                negativePoints.push_back(currentPoint);
-        }
-
-        // Fläche (positiv)
-        if (positivePoints.size() > 1)
-        {
-            positivePoints.insert(positivePoints.begin(), PointF(positivePoints.front().X, (REAL)beamY));
-            positivePoints.push_back(PointF(positivePoints.back().X, (REAL)beamY));
-            graphics.FillPolygon(&brushRed, positivePoints.data(), (INT)positivePoints.size());
-        }
-
-        // Fläche (negativ)
-        if (negativePoints.size() > 1)
-        {
-            negativePoints.insert(negativePoints.begin(), PointF(negativePoints.front().X, (REAL)beamY));
-            negativePoints.push_back(PointF(negativePoints.back().X, (REAL)beamY));
-            graphics.FillPolygon(&brushBlue, negativePoints.data(), (INT)negativePoints.size());
-        }
-
-        // Startlinie
-        double yStart = SolvePolynom(0, object) * scaleY;
-        PointF startX((REAL)(beamX + xStartAbs * scaleX), (REAL)(beamY));
-        PointF startY((REAL)(beamX + xStartAbs * scaleX), (REAL)(beamY + yStart));
-        graphics.DrawLine(&curvePen, startX, startY);
-
-        // Endlinie
-        double xEndAbs = xStartAbs + object->Length;
-        double yEnd = SolvePolynom(object->Length, object) * scaleY;
-        PointF endVal((REAL)(beamX + xEndAbs * scaleX), (REAL)(beamY + yEnd));
-        PointF endX((REAL)(beamX + xEndAbs * scaleX), (REAL)(beamY));
-        graphics.DrawLine(&curvePen, endVal, endX);
-    }
-
-    // draw numerical values
+    // Optional: Zeichnet numerische Werte direkt an die Kurve
     if (values)
     {
-        UINT oldTextAlign = pDC->SetTextAlign(TA_CENTER | TA_TOP);
-
-        // 1. Schritt: kleinsten Betrag aus den gezeigten Werten ermitteln
-        double minShownAbs = 0.0;
-        bool hasMin = false;
-
-        position = sectionList->GetHeadPosition();
-        while (position != NULL)
-        {
-            object = (Section*)sectionList->GetNext(position);
-            if (object)
-            {
-                double y;
-
-                y = SolvePolynom(0, object);
-                if (fabs(y) > EPSILON && (!hasMin || fabs(y) < fabs(minShownAbs)))
-                {
-                    minShownAbs = y;
-                    hasMin = true;
-                }
-
-                y = SolvePolynom(GetMaximum(object), object);
-                if (fabs(y) > EPSILON && (!hasMin || fabs(y) < fabs(minShownAbs)))
-                {
-                    minShownAbs = y;
-                    hasMin = true;
-                }
-
-                y = SolvePolynom(object->Length, object);
-                if (fabs(y) > EPSILON && (!hasMin || fabs(y) < fabs(minShownAbs)))
-                {
-                    minShownAbs = y;
-                    hasMin = true;
-                }
-            }
-        }
-
-        std::set<std::pair<int, std::string>> drawnLabels;
-
-        position = sectionList->GetHeadPosition();
-        while (position != NULL)
-        {
-            object = (Section*)sectionList->GetNext(position);
-            if (!object) continue;
-
-            double x, y;
-
-            // --- linker Wert
-            y = SolvePolynom(0, object);
-            if (fabs(y) > EPSILON)
-            {
-                int xPos = beamX + (int)(object->Start * scaleX);
-                int yPos = beamY + (int)(y * scaleY);
-
-                char buf[32];
-                sprintf_s(buf, "%.2f", y * unitScale);
-                std::pair<int, std::string> key(xPos, buf);
-
-                if (drawnLabels.insert(key).second)
-                {
-                    bool isMax = fabs(fabs(y) - fabs(maxForColor)) < 1e-6;
-                    bool isMin = fabs(fabs(y) - fabs(minShownAbs)) < 1e-6;
-                    COLORREF color = isMax ? RGB(220, 0, 0) : (isMin ? RGB(0, 200, 0) : RGB(0, 0, 0));
-                    DrawValue(pDC, xPos, yPos, mirror, y * unitScale, color);
-                }
-            }
-
-            // --- Extremum (nur wenn nicht gespiegelt)
-            x = GetMaximum(object);
-            y = SolvePolynom(x, object);
-            if (fabs(y) > EPSILON && !mirror)
-            {
-                int xPos = beamX + (int)((object->Start + x) * scaleX);
-                int yPos = beamY + (int)(y * scaleY);
-
-                char buf[32];
-                sprintf_s(buf, "%.2f", y * unitScale);
-                std::pair<int, std::string> key(xPos, buf);
-
-                if (drawnLabels.insert(key).second)
-                {
-                    bool isMax = fabs(fabs(y) - fabs(maxForColor)) < 1e-6;
-                    bool isMin = fabs(fabs(y) - fabs(minShownAbs)) < 1e-6;
-                    COLORREF color = isMax ? RGB(220, 0, 0) : (isMin ? RGB(0, 200, 0) : RGB(0, 0, 0));
-                    DrawValue(pDC, xPos, yPos, mirror, y * unitScale, color);
-                }
-            }
-
-            // --- rechter Wert
-            y = SolvePolynom(object->Length, object);
-            if (fabs(y) > EPSILON)
-            {
-                int xPos = beamX + (int)((object->Start + object->Length) * scaleX);
-                int yPos = beamY + (int)(y * scaleY);
-
-                char buf[32];
-                sprintf_s(buf, "%.2f", y * unitScale);
-                std::pair<int, std::string> key(xPos, buf);
-
-                if (drawnLabels.insert(key).second)
-                {
-                    bool isMax = fabs(fabs(y) - fabs(maxForColor)) < 1e-6;
-                    bool isMin = fabs(fabs(y) - fabs(minShownAbs)) < 1e-6;
-                    COLORREF color = isMax ? RGB(220, 0, 0) : (isMin ? RGB(0, 200, 0) : RGB(0, 0, 0));
-                    DrawValue(pDC, xPos, yPos, mirror, y * unitScale, color);
-                }
-            }
-        }
-
-        pDC->SetTextAlign(oldTextAlign);  // <- bleibt am Ende gleich!
+        DrawNumericalValues(pDC, sectionList, beamX, beamY, scaleX, scaleY, mirror, unitScale, maxForColor, viewName);
     }
+}
+
+// Zeichnet die horizontale Linie für den Träger
+void View::DrawBeam(CDC* pDC, int beamX, int beamY, double scaleX)
+{
+    int beamLengthPx = (int)(_document->_beamLength * scaleX);
+    pDC->MoveTo(beamX, beamY);
+    pDC->LineTo(beamX + beamLengthPx, beamY);
+}
+
+// Zeichnet den Ansichtsnamen links neben dem Träger mit Rahmen
+void View::DrawViewName(CDC* pDC, int beamX, int beamY, const char* viewName)
+{
+    CSize textSize = pDC->GetTextExtent(viewName, (int)strlen(viewName));
+    int left = beamX - textSize.cx - 20;
+    int right = beamX - 12;
+    int top = beamY - (textSize.cy / 2) - 3;
+    int bottom = beamY + (textSize.cy / 2) + 3;
+
+    pDC->MoveTo(left, top);
+    pDC->LineTo(right, top);
+    pDC->LineTo(right, bottom);
+    pDC->LineTo(left, bottom);
+    pDC->LineTo(left, top);
+    pDC->TextOut(left + 4, beamY - (textSize.cy / 2), viewName);
+}
+
+// Liefert das Beschriftungslabel und bestimmt Extremwerte je nach Ansichtstyp
+CString View::GetUnitLabel(const char* viewName, const char* unitName, CObList* sectionList, double& maxVal, double& minVal)
+{
+    CString label;
+    if (strcmp(viewName, "FZ") == 0) {
+        maxVal = _document->GetMaxShear();
+        minVal = _document->GetMinShear();
+        label.Format("[kN]  Qmax = %.2f", fabs(maxVal));
+    }
+    else if (strcmp(viewName, "MY") == 0) {
+        maxVal = _document->GetMaxMoment();
+        minVal = _document->GetMinMoment();
+        label.Format("[kNm]  Mmax = %.2f", fabs(maxVal));
+    }
+    else if (strcmp(viewName, "UZ") == 0) {
+        double maxW = 0.0, minW = 0.0;
+        POSITION pos = sectionList->GetHeadPosition();
+        while (pos) {
+            Section* s = (Section*)sectionList->GetNext(pos);
+            for (double x = 0; x <= s->Length; x += 0.01) {
+                double y = s->A4 * pow(x, 4) + s->A3 * pow(x, 3) + s->A2 * x * x + s->A1 * x + s->A0;
+                maxW = (std::max)((maxW), (y));
+                minW = (std::min)((minW), (y));
+            }
+        }
+        maxVal = maxW; minVal = minW;
+        label.Format("[mm]  wmax = %.2f", fabs(maxW * 1000.0));
+    }
+    else {
+        label = unitName;
+    }
+    return label;
+}
+
+// Zeichnet die Einheitenbeschriftung am rechten Rand der Ansicht
+void View::DrawUnitLabel(CDC* pDC, int beamX, int beamY, double scaleX, CString label)
+{
+    CSize textSize = pDC->GetTextExtent(label);
+    pDC->TextOut(beamX + (int)(_document->_beamLength * scaleX) + 12, beamY - (textSize.cy / 2), label);
+}
+
+// Berechnet das größte Ergebnis der Polynome zur Skalierung
+double View::CalculateMaxValue(CObList* sectionList)
+{
+    double maxVal = 0.0;
+    POSITION pos = sectionList->GetHeadPosition();
+    while (pos) {
+        Section* obj = (Section*)sectionList->GetNext(pos);
+        double xVals[] = { 0, obj->Length, GetMaximum(obj) };
+        for (double x : xVals)
+            maxVal = (std::max)((maxVal), (fabs(SolvePolynom(x, obj))));
+    }
+    return maxVal;
+}
+
+// Zeichnet die Verformungskurven sowie farbige Flächen für positive und negative Bereiche
+void View::DrawCurves(Graphics& graphics, CObList* sectionList, int beamX, int beamY, double scaleX, double scaleY)
+{
+    SolidBrush brushRed(Color(80, 0, 0, 255));     // Transparente Farbe für positive Fläche
+    SolidBrush brushBlue(Color(80, 255, 0, 0));    // Transparente Farbe für negative Fläche
+    Pen curvePen(Color(255, 0, 0, 0), 1.5f);       // Linie für Kurve
+
+    POSITION pos = sectionList->GetHeadPosition();
+    while (pos)
+    {
+        Section* obj = (Section*)sectionList->GetNext(pos);
+        double dx = 1.0 / scaleX;
+        std::vector<PointF> posPts, negPts;
+        PointF lastPt; bool first = true;
+        double xAbsStart = obj->Start;
+
+        for (double x = 0; x <= obj->Length; x += dx)
+        {
+            double y = SolvePolynom(x, obj) * scaleY;
+            PointF pt((REAL)(beamX + (xAbsStart + x) * scaleX), (REAL)(beamY + y));
+            if (!first) graphics.DrawLine(&curvePen, lastPt, pt);
+            lastPt = pt; first = false;
+            (y >= 0 ? posPts : negPts).push_back(pt);
+        }
+
+        // Fläche über positiver Kurve füllen
+        if (posPts.size() > 1)
+        {
+            posPts.insert(posPts.begin(), PointF(posPts.front().X, (REAL)beamY));
+            posPts.push_back(PointF(posPts.back().X, (REAL)beamY));
+            graphics.FillPolygon(&brushRed, posPts.data(), (INT)posPts.size());
+        }
+        // Fläche unter negativer Kurve füllen
+        if (negPts.size() > 1)
+        {
+            negPts.insert(negPts.begin(), PointF(negPts.front().X, (REAL)beamY));
+            negPts.push_back(PointF(negPts.back().X, (REAL)beamY));
+            graphics.FillPolygon(&brushBlue, negPts.data(), (INT)negPts.size());
+        }
+
+        // Vertikale Linie am Start
+        double yStart = SolvePolynom(0, obj) * scaleY;
+        graphics.DrawLine(&curvePen, PointF((REAL)(beamX + xAbsStart * scaleX), (REAL)beamY), PointF((REAL)(beamX + xAbsStart * scaleX), (REAL)(beamY + yStart)));
+        // Vertikale Linie am Ende
+        double yEnd = SolvePolynom(obj->Length, obj) * scaleY;
+        graphics.DrawLine(&curvePen, PointF((REAL)(beamX + (xAbsStart + obj->Length) * scaleX), (REAL)(beamY + yEnd)), PointF((REAL)(beamX + (xAbsStart + obj->Length) * scaleX), (REAL)beamY));
+    }
+}
+
+// Zeichnet Zahlenwerte (z. B. w, M, Q) in die Grafik, farblich hervorgehoben bei Extremwerten
+void View::DrawNumericalValues(CDC* pDC, CObList* sectionList, int beamX, int beamY,
+    double scaleX, double scaleY, BOOL mirror,
+    double unitScale, double maxForColor, const char* viewName)
+{
+    UINT oldAlign = pDC->SetTextAlign(TA_CENTER | TA_TOP);
+    std::set<std::pair<int, std::string>> drawn;
+
+    // Bestimme kleinstes nicht-null Ergebnis zur Min-Wert-Erkennung
+    double minShownAbs = 0.0;
+    bool hasMin = false;
+
+    POSITION pos = sectionList->GetHeadPosition();
+    while (pos)
+    {
+        Section* obj = (Section*)sectionList->GetNext(pos);
+        double yVals[] = {
+            SolvePolynom(0, obj),
+            SolvePolynom(GetMaximum(obj), obj),
+            SolvePolynom(obj->Length, obj)
+        };
+        for (double y : yVals)
+        {
+            if (fabs(y) > EPSILON && (!hasMin || fabs(y) < fabs(minShownAbs))) {
+                minShownAbs = y;
+                hasMin = true;
+            }
+        }
+    }
+
+    // Zeichnet alle relevanten Werte: Start, Extremum, Ende
+    pos = sectionList->GetHeadPosition();
+    while (pos)
+    {
+        Section* obj = (Section*)sectionList->GetNext(pos);
+        double xs[] = { 0, GetMaximum(obj), obj->Length };
+
+        for (double x : xs)
+        {
+            double y = SolvePolynom(x, obj);
+            if (fabs(y) <= EPSILON) continue;
+
+            // Nur Extremum bei MY/UZ bei Mirror unterdrücken, nicht bei FZ
+            bool isExtremum = (x == GetMaximum(obj));
+            bool isFZ = (viewName && strcmp(viewName, "FZ") == 0);
+            if (isExtremum && mirror && !isFZ) continue;
+
+            int xPos = beamX + (int)((obj->Start + x) * scaleX);
+            int yPos = beamY + (int)(y * scaleY);
+
+            char buf[32];
+            sprintf_s(buf, "%.2f", y * unitScale);
+            std::pair<int, std::string> key(xPos, buf);
+
+            if (drawn.insert(key).second)
+            {
+                bool isMax = fabs(fabs(y) - fabs(maxForColor)) < 1e-6;
+                bool isMin = fabs(fabs(y) - fabs(minShownAbs)) < 1e-6;
+                COLORREF color = isMax ? RGB(220, 0, 0) :
+                    (isMin ? RGB(0, 200, 0) : RGB(0, 0, 0));
+                DrawValue(pDC, xPos, yPos, mirror, y * unitScale, color);
+            }
+        }
+    }
+
+    pDC->SetTextAlign(oldAlign);
 }
 
 void View::DrawResults(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeight, int views)

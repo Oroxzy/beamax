@@ -1,3 +1,5 @@
+﻿#include <gdiplus.h>
+#include <gdipluseffects.h>
 #ifndef __View__
 #define __View__
 
@@ -57,16 +59,35 @@ protected:
     virtual void OnEndPrinting(CDC* pDC, CPrintInfo* pPrintInfo);
     virtual void OnPrepareDC(CDC* pDC, CPrintInfo* pPrintInfo);
 
-    // graph functions
-    inline double GetMaximum(Section* object);
-    inline double SolvePolynom(double x, Section* object);
-    inline BOOL IsRectEmpty(CDC* pDC, int x1, int y1, int x2, int y2);
-    void LPtoDP(CRect& rect);
-    void Draw(CDC* pDC, CDC* pDrawDC);
-    void DrawValue(CDC* pDC, int x, int y, BOOL mirror, double value, COLORREF color);
-    void DrawReactionValue(CDC* pDC, int x, int y, double value, COLORREF color);
-    void DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeight, BOOL mirror, BOOL values, double unit, char* unitName, char* viewName, CObList* sectionList);
-    void DrawResults(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeight, int views);
+    // Graphik- und Zeichenfunktionen für Balkenansichten
+
+    // Hilfsfunktionen für Polynom-Analyse
+    inline double GetMaximum(Section* object);                   // Liefert x-Koordinate des Maximums eines Polynoms
+    inline double SolvePolynom(double x, Section* object);       // Berechnet den y-Wert eines Polynoms an Stelle x
+
+    // Allgemeine Zeichenhilfen
+    inline BOOL IsRectEmpty(CDC* pDC, int x1, int y1, int x2, int y2); // Prüft, ob ein Rechteck leer ist (nützlich für Optimierungen)
+    void LPtoDP(CRect& rect);                                     // Wandelt logische in Geräteeinheiten um
+    void Draw(CDC* pDC, CDC* pDrawDC);                            // Führt den eigentlichen Zeichenvorgang aus (Rahmen, Koordinaten etc.)
+
+    // Einzelwert-Visualisierung
+    void DrawValue(CDC* pDC, int x, int y, BOOL mirror, double value, COLORREF color); // Zeichnet einen Zahlenwert (z. B. Moment, Verschiebung)
+    void DrawReactionValue(CDC* pDC, int x, int y, double value, COLORREF color);      // Zeichnet eine Auflagerkraft oder Lagerreaktion
+
+    // Hauptfunktionen zur Ergebnisdarstellung
+    void DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeight, BOOL mirror, BOOL values, double unitScale, char* unitName, char* viewName, CObList* sectionList); // Zeichnet eine einzelne Ergebnisansicht
+    void DrawResults(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeight, int views); // Zeichnet alle aktivierten Ergebnisansichten
+
+    // Neue Hilfsfunktionen aus Refactoring (DrawView intern verwendet)
+    void DrawBeam(CDC* pDC, int beamX, int beamY, double scaleX);
+    void DrawViewName(CDC* pDC, int beamX, int beamY, const char* viewName);
+    CString GetUnitLabel(const char* viewName, const char* unitName, CObList* sectionList, double& maxVal, double& minVal);
+    void DrawUnitLabel(CDC* pDC, int beamX, int beamY, double scaleX, CString label);
+    double CalculateMaxValue(CObList* sectionList);
+    void DrawCurves(Gdiplus::Graphics& graphics, CObList* sectionList, int beamX, int beamY, double scaleX, double scaleY); // korrigiert
+    void DrawNumericalValues(CDC* pDC, CObList* sectionList, int beamX, int beamY,
+        double scaleX, double scaleY, BOOL mirror,
+        double unitScale, double maxForColor, const char* viewName);
 
     DECLARE_MESSAGE_MAP()
     DECLARE_DYNCREATE(View)
