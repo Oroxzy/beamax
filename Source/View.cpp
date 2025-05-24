@@ -70,6 +70,8 @@ View::~View()
 
 void View::OnInitialUpdate()
 {
+    srand((unsigned)time(NULL));  // <<< NEU: Zufallszahlengenerator initialisieren
+
     CScrollView::OnInitialUpdate();
     SetScrollSizes(MM_TEXT, CSize(100, 100));
 
@@ -901,17 +903,6 @@ void View::DrawReactionValue(CDC* pDC, int x, int y, double value, COLORREF colo
     pDC->SetTextAlign(TA_CENTER | TA_BASELINE);
     pDC->TextOut(x, y, buffer);
 }
-
-
-// DrawView.cpp
-#include "View.h"
-#include <cmath>
-#include <set>
-#include <vector>
-#include <gdiplus.h>
-using namespace Gdiplus;
-
-#define EPSILON 1e-6
 
 // Hauptfunktion zum Zeichnen einer Ansicht mit Beschriftung, Farbflächen und Werten
 void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeight, BOOL mirror, BOOL values, double unitScale, char* unitName, char* viewName, CObList* sectionList)

@@ -2,6 +2,8 @@
 #define __Object__
 
 #include "stdafx.h"
+#include <gdiplus.h>
+using namespace Gdiplus;
 
 class ObjectCast : public CObject
 {
@@ -95,13 +97,21 @@ public:
 
 class LinearDistributedLoad : public LoadCast
 {
-public:
-    LinearDistributedLoad();
-    virtual void Serialize(CArchive& archive);
-    virtual void Draw(CDC* pDC, int x, int y, double Scale);
-    virtual void GetExtent(CDC* pDC, double& Start, double& Length, double Scale);
-
     DECLARE_SERIAL(LinearDistributedLoad)
+
+private:
+    BYTE _fillR, _fillG, _fillB;
+
+public:
+    LinearDistributedLoad(); // für Laden via Serialize
+    LinearDistributedLoad(double position, double value, double length); // Konstruktion mit Farbe
+
+    virtual void Serialize(CArchive& archive) override;
+    virtual void Draw(CDC* pDC, int x, int y, double Scale) override;
+    virtual void GetExtent(CDC* pDC, double& Start, double& Length, double Scale) override;
+
+    Gdiplus::Color GetFillColor() const;
 };
+
 
 #endif

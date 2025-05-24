@@ -1,6 +1,11 @@
 #include "stdafx.h"
 #include "Object.h"
 #include <math.h>
+#include <gdiplus.h>
+using namespace Gdiplus;
+#define PASTELL_MIN 160
+#define PASTELL_SPAN 80
+#define FILL_ALPHA 100
 
 IMPLEMENT_SERIAL(ObjectCast, CObject, 1);
 
@@ -149,6 +154,13 @@ IMPLEMENT_SERIAL(LoadCast, ObjectCast, 2);
 
 void LoadCast::Serialize(CArchive& archive)
 {
+    ObjectCast::Serialize(archive);
+    if (archive.IsStoring()) {
+        archive << _position << _value << _length << _level;
+    }
+    else {
+        archive >> _position >> _value >> _length >> _level;
+    }
 }
 
 void LoadCast::GetExtent(CDC* pDC, double & Start,
@@ -247,25 +259,67 @@ IMPLEMENT_SERIAL(LinearDistributedLoad, LoadCast, 3);
 
 LinearDistributedLoad::LinearDistributedLoad()
 {
+    _position = 0.0;
+    _value = 0.0;
+    _length = 0.0;
     _level = 0;
+
+    _fillR = PASTELL_MIN + rand() % PASTELL_SPAN;
+    _fillG = PASTELL_MIN + rand() % PASTELL_SPAN;
+    _fillB = PASTELL_MIN + rand() % PASTELL_SPAN;
 }
 
-void LinearDistributedLoad::Serialize(CArchive& archive)
+LinearDistributedLoad::LinearDistributedLoad(double position, double value, double length)
 {
-    if (archive.IsLoading())
-        archive >> _position >> _length >> _value;
+    _position = position;
+    _value = value;
+    _length = length;
+    _level = 0;
+
+    // Pastellfarbe generieren
+    _fillR = PASTELL_MIN + rand() % PASTELL_SPAN;
+    _fillG = PASTELL_MIN + rand() % PASTELL_SPAN;
+    _fillB = PASTELL_MIN + rand() % PASTELL_SPAN;
+}
+
+Color LinearDistributedLoad::GetFillColor() const
+{
+    return Color(100, _fillR, _fillG, _fillB);
+}
+
+void LinearDistributedLoad::Serialize(CArchive& ar)
+{
+    ObjectCast::Serialize(ar);
+
+    if (ar.IsStoring())
+    {
+        ar << _position << _value << _length;
+        ar << _fillR << _fillG << _fillB;
+    }
     else
-        archive << _position << _length << _value;
+    {
+        ar >> _position >> _value >> _length;
+        ar >> _fillR >> _fillG >> _fillB;
+    }
 }
 
 void LinearDistributedLoad::Draw(CDC* pDC, int x, int y, double Scale)
 {
+    Graphics graphics(pDC->GetSafeHdc());
+    graphics.SetSmoothingMode(SmoothingModeAntiAlias);
+    graphics.SetCompositingQuality(CompositingQualityHighQuality);
+
     char buffer[36];
 
     x = x + (int)(_position * Scale);
     y = y - ((_level - 1) * 30);
 
     int length = (int)(_length * Scale);
+    int height = 30;
+
+    // Bereits gespeicherte Farbe verwenden
+    SolidBrush pastelBrush(Color(FILL_ALPHA, _fillR, _fillG, _fillB));
+    graphics.FillRectangle(&pastelBrush, x, y - height, length, height);
 
     pDC->MoveTo(x, y - 30);
     pDC->LineTo(x + length, y - 30);
@@ -296,7 +350,7 @@ void LinearDistributedLoad::Draw(CDC* pDC, int x, int y, double Scale)
     }
 
     sprintf_s(buffer, "%.2f", _value);
-    pDC->SetTextAlign(TA_LEFT | TA_TOP);  // richtig
+    pDC->SetTextAlign(TA_LEFT | TA_TOP);
     pDC->TextOut(x + length + 2, y - 30, buffer);
 
     CSize textSize(pDC->GetTextExtent(buffer, (int)strlen(buffer)));
