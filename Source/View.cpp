@@ -934,7 +934,7 @@ void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeigh
     graphics.SetCompositingQuality(CompositingQualityHighQuality);
 
     // Zeichnet die Kurven (inkl. Fläche, Start/Endlinien)
-    DrawCurves(graphics, sectionList, beamX, beamY, scaleX, scaleY);
+    DrawCurves(graphics, sectionList, beamX, beamY, scaleX, scaleY, viewName);
 
     // Optional: Zeichnet numerische Werte direkt an die Kurve
     if (values)
@@ -1024,11 +1024,13 @@ double View::CalculateMaxValue(CObList* sectionList)
 }
 
 // Zeichnet die Verformungskurven sowie farbige Flächen für positive und negative Bereiche
-void View::DrawCurves(Graphics& graphics, CObList* sectionList, int beamX, int beamY, double scaleX, double scaleY)
+void View::DrawCurves(Graphics& graphics, CObList* sectionList, int beamX, int beamY, double scaleX, double scaleY, const char* viewName)
 {
     SolidBrush brushRed(Color(80, 0, 0, 255));     // Transparente Farbe für positive Fläche
     SolidBrush brushBlue(Color(80, 255, 0, 0));    // Transparente Farbe für negative Fläche
     Pen curvePen(Color(255, 0, 0, 0), 1.5f);       // Linie für Kurve
+
+    bool isShearForce = (strcmp(viewName, "FZ") == 0);
 
     POSITION pos = sectionList->GetHeadPosition();
     while (pos)
@@ -1041,21 +1043,22 @@ void View::DrawCurves(Graphics& graphics, CObList* sectionList, int beamX, int b
 
         for (double x = 0; x <= obj->Length; x += dx)
         {
-            double y = SolvePolynom(x, obj) * scaleY;
+            double y = isShearForce ? (obj->A1 * x + obj->A0) * scaleY
+                : SolvePolynom(x, obj) * scaleY;
+
             PointF pt((REAL)(beamX + (xAbsStart + x) * scaleX), (REAL)(beamY + y));
             if (!first) graphics.DrawLine(&curvePen, lastPt, pt);
             lastPt = pt; first = false;
             (y >= 0 ? posPts : negPts).push_back(pt);
         }
 
-        // Fläche über positiver Kurve füllen
         if (posPts.size() > 1)
         {
             posPts.insert(posPts.begin(), PointF(posPts.front().X, (REAL)beamY));
             posPts.push_back(PointF(posPts.back().X, (REAL)beamY));
             graphics.FillPolygon(&brushRed, posPts.data(), (INT)posPts.size());
         }
-        // Fläche unter negativer Kurve füllen
+
         if (negPts.size() > 1)
         {
             negPts.insert(negPts.begin(), PointF(negPts.front().X, (REAL)beamY));
@@ -1063,12 +1066,19 @@ void View::DrawCurves(Graphics& graphics, CObList* sectionList, int beamX, int b
             graphics.FillPolygon(&brushBlue, negPts.data(), (INT)negPts.size());
         }
 
-        // Vertikale Linie am Start
-        double yStart = SolvePolynom(0, obj) * scaleY;
-        graphics.DrawLine(&curvePen, PointF((REAL)(beamX + xAbsStart * scaleX), (REAL)beamY), PointF((REAL)(beamX + xAbsStart * scaleX), (REAL)(beamY + yStart)));
-        // Vertikale Linie am Ende
-        double yEnd = SolvePolynom(obj->Length, obj) * scaleY;
-        graphics.DrawLine(&curvePen, PointF((REAL)(beamX + (xAbsStart + obj->Length) * scaleX), (REAL)(beamY + yEnd)), PointF((REAL)(beamX + (xAbsStart + obj->Length) * scaleX), (REAL)beamY));
+        double yStart = isShearForce ? (obj->A0) * scaleY
+            : SolvePolynom(0, obj) * scaleY;
+
+        double yEnd = isShearForce ? (obj->A1 * obj->Length + obj->A0) * scaleY
+            : SolvePolynom(obj->Length, obj) * scaleY;
+
+        graphics.DrawLine(&curvePen,
+            PointF((REAL)(beamX + xAbsStart * scaleX), (REAL)beamY),
+            PointF((REAL)(beamX + xAbsStart * scaleX), (REAL)(beamY + yStart)));
+
+        graphics.DrawLine(&curvePen,
+            PointF((REAL)(beamX + (xAbsStart + obj->Length) * scaleX), (REAL)(beamY + yEnd)),
+            PointF((REAL)(beamX + (xAbsStart + obj->Length) * scaleX), (REAL)beamY));
     }
 }
 

@@ -258,15 +258,16 @@ BOOL Document::Analyse()
     Section* bendingMoment;
     Section* displacement;
     HRESULT result = 0;
-    do
-    {
+    do {
         shearForce = new Section;
         bendingMoment = new Section;
         displacement = new Section;
         result = analysis->GetNextSection(shearForce, bendingMoment, displacement);
-        _shearForceList.AddHead((CObject *)shearForce);
-        _bendingMomentList.AddHead((CObject *)bendingMoment);
-        _displacementList.AddHead((CObject *)displacement);
+
+        // NICHT mehr shearForce verändern!
+        _shearForceList.AddHead((CObject*)shearForce);
+        _bendingMomentList.AddHead((CObject*)bendingMoment);
+        _displacementList.AddHead((CObject*)displacement);
     } while (result == S_OK);
 
 

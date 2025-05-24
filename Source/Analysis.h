@@ -179,6 +179,8 @@ public:
     TrapezoidalLoadNode(double start, double length, double vStart, double vEnd);
     double GetDistance(double start);
     int IsLoadVector(double start, double length);
+    double GetValueStart() const { return _valueStart; }
+    double GetValueEnd() const { return _valueEnd; }
     Matrix& GetLoadVector(double length);
 };
 

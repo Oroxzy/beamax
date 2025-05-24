@@ -84,7 +84,7 @@ protected:
     CString GetUnitLabel(const char* viewName, const char* unitName, CObList* sectionList, double& maxVal, double& minVal);
     void DrawUnitLabel(CDC* pDC, int beamX, int beamY, double scaleX, CString label);
     double CalculateMaxValue(CObList* sectionList);
-    void DrawCurves(Gdiplus::Graphics& graphics, CObList* sectionList, int beamX, int beamY, double scaleX, double scaleY); // korrigiert
+    void DrawCurves(Gdiplus::Graphics& graphics, CObList* sectionList, int beamX, int beamY, double scaleX, double scaleY, const char* viewName);
     void DrawNumericalValues(CDC* pDC, CObList* sectionList, int beamX, int beamY,
         double scaleX, double scaleY, BOOL mirror,
         double unitScale, double maxForColor, const char* viewName);

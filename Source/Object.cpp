@@ -311,11 +311,14 @@ void LinearDistributedLoad::Draw(CDC* pDC, int x, int y, double Scale)
     graphics.SetSmoothingMode(SmoothingModeAntiAlias);
     graphics.SetCompositingQuality(CompositingQualityHighQuality);
 
-    int x0 = x + (int)(_position * Scale);
-    int x1 = x0 + (int)(_length * Scale);
-    int y0 = y - ((_level - 1) * 30);
+    x = x + (int)(_position * Scale);
+    y = y - ((_level - 1) * 30);
 
-    // Skalierung der Höhe
+    int length = (int)(_length * Scale);
+    int x0 = x;
+    int x1 = x + length;
+    int y0 = y;
+
     const int minHeight = 6;
     const int maxHeight = 32;
     const double referenceLoad = 10.0;
@@ -330,71 +333,79 @@ void LinearDistributedLoad::Draw(CDC* pDC, int x, int y, double Scale)
     int dyStart = getHeight(_valueStart);
     int dyEnd = getHeight(_valueEnd);
 
-    bool isUpward = (_valueStart >= 0 && _valueEnd >= 0);
+    int topYStart = y0 - dyStart;
+    int topYEnd = y0 - dyEnd;
 
-    int baseY = y0;
-    int topYStart = isUpward ? (y0 - dyStart) : (y0 + dyStart);
-    int topYEnd = isUpward ? (y0 - dyEnd) : (y0 + dyEnd);
-
-    // Trapez füllen
-    PointF trapezoid[4] = {
-        PointF((REAL)x0, (REAL)y0),
-        PointF((REAL)x0, (REAL)topYStart),
-        PointF((REAL)x1, (REAL)topYEnd),
-        PointF((REAL)x1, (REAL)y0),
-    };
+    // Trapez zeichnen (unten y0, oben y0 + dy)
+    PointF trapezoid[4];
+    if (fabs(_valueStart - _valueEnd) < 1e-6) {
+        // Rechteck zeichnen für konstante Linienlast
+        trapezoid[0] = PointF((REAL)x0, (REAL)y0);
+        trapezoid[1] = PointF((REAL)x0, (REAL)topYStart);
+        trapezoid[2] = PointF((REAL)x1, (REAL)topYStart);
+        trapezoid[3] = PointF((REAL)x1, (REAL)y0);
+    }
+    else {
+        // Trapez zeichnen für veränderliche Linienlast
+        trapezoid[0] = PointF((REAL)x0, (REAL)y0);
+        trapezoid[1] = PointF((REAL)x0, (REAL)topYStart);
+        trapezoid[2] = PointF((REAL)x1, (REAL)topYEnd);
+        trapezoid[3] = PointF((REAL)x1, (REAL)y0);
+    }
 
     SolidBrush fill(Color(100, _fillR, _fillG, _fillB));
     Pen border(Color(255, 0, 0, 0), 1.0f);
     graphics.FillPolygon(&fill, trapezoid, 4);
     graphics.DrawPolygon(&border, trapezoid, 4);
 
-    // Vertikale Linien entlang der Trapezform (ohne Pfeil)
-    int arrowCount = min(24, (int)(_length * Scale / 12));
-    for (int i = 1; i <= arrowCount; ++i)
-    {
-        double rel = (double)i / (arrowCount + 1);
-        int xi = x0 + (int)((_length * rel) * Scale);
+    // Vertikale Linien innerhalb des Trapezes
+    int pixelLength = x1 - x0;
+    double DX = (_length / (((double)pixelLength / 9) + 1));
+    double XC = DX;
 
-        // Interpolation zwischen topYStart und topYEnd
+    while ((XC * Scale) < (pixelLength - 1))
+    {
+        double rel = XC / _length;
+        int xi = x0 + (int)(XC * Scale);
         int yi = (int)((1.0 - rel) * topYStart + rel * topYEnd);
 
         pDC->MoveTo(xi, y0);
         pDC->LineTo(xi, yi);
+
+        XC += DX;
     }
 
-    // Pfeilspitzen NUR an den Enden (x0, x1)
-    auto drawArrow = [&](int xArrow, int dyVal, bool upward) {
-        int tip = upward ? (y0 - dyVal) : (y0 + dyVal);
-        pDC->MoveTo(xArrow, y0);
+    // Pfeile immer nach unten
+    auto drawArrow = [&](int xArrow, int dyVal) {
+        int tip = y0;                   // Basislinie (Ziel des Pfeils)
+        int top = y0 - dyVal;           // Trapezoberkante (Start des Pfeils)
+
+        pDC->MoveTo(xArrow, top);       // Schaft des Pfeils
         pDC->LineTo(xArrow, tip);
 
-        if (upward) {
-            pDC->MoveTo(xArrow - 3, tip + 5);
-            pDC->LineTo(xArrow, tip);
-            pDC->MoveTo(xArrow + 3, tip + 5);
-            pDC->LineTo(xArrow, tip);
-        }
-        else {
-            pDC->MoveTo(xArrow - 3, tip - 5);
-            pDC->LineTo(xArrow, tip);
-            pDC->MoveTo(xArrow + 3, tip - 5);
-            pDC->LineTo(xArrow, tip);
-        }
+        // Pfeilspitze zeigt nach unten
+        pDC->MoveTo(xArrow - 3, tip - 5);
+        pDC->LineTo(xArrow, tip);
+        pDC->MoveTo(xArrow + 3, tip - 5);
+        pDC->LineTo(xArrow, tip);
         };
 
-    drawArrow(x0, dyStart, isUpward);
-    drawArrow(x1, dyEnd, isUpward);
+    drawArrow(x0, dyStart);
+    drawArrow(x1, dyEnd);
 
-    // Textanzeige (rechts)
+    // Beschriftung rechts neben dem Trapez
     char buffer[64];
     sprintf_s(buffer, "%.2f -> %.2f", _valueStart, _valueEnd);
     pDC->SetTextAlign(TA_LEFT | TA_TOP);
-    pDC->TextOut(x1 + 4, y0 - maxHeight, buffer);
 
     CSize textSize = pDC->GetTextExtent(buffer);
+    int topYMin = min(topYStart, topYEnd);
+    int textY = topYMin - textSize.cy - 4; // Text oberhalb der Trapezoberkante
+
+    pDC->TextOut(x1 + 4, textY, buffer);   // Text platzieren
+
     _boundRect = CRectTracker(
-        CRect(x0 - 9, y0 - maxHeight - 4, x1 + textSize.cx + 7, y0 + 4),
+        CRect(x0 - 9, textY - 4, x1 + textSize.cx + 7, y0 + 4),
         CRectTracker::dottedLine
     );
 }

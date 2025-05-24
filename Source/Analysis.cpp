@@ -1,4 +1,4 @@
-#include <stdio.h>
+﻿#include <stdio.h>
 #include <iostream>
 #include <math.h>
 #include "stdafx.h"
@@ -596,19 +596,40 @@ int TrapezoidalLoadNode::IsLoadVector(double start, double length)
 
 Matrix& TrapezoidalLoadNode::GetLoadVector(double length)
 {
-    double q0 = _valueStart;
-    double q1 = _valueEnd;
-    double l = _length;
-
-    double R = (q0 + q1) * l / 2.0;
-    double a = l * q1 / (q0 + q1);
-    double M = R * a;
+    double q0 = _valueStart;   // Linienlast am linken Ende
+    double q1 = _valueEnd;     // Linienlast am rechten Ende
+    double L = length;
 
     _vector = Matrix(4, 1);
-    _vector(0, 0) = 0.0;
-    _vector(1, 0) = 0.0;
-    _vector(2, 0) = -R;
-    _vector(3, 0) = -M;
+    _vector.Fill(0.0);
+
+    if (L < EPSILON)
+        return _vector;
+
+    // Konstante Linienlast
+    if (fabs(q1 - q0) < EPSILON)
+    {
+        double q = q0;
+        double L = length;
+
+        _vector(0, 0) = -q * L * L / 12.0; // Moment links
+        _vector(1, 0) = -q * L / 2.0;      // Querkraft links
+        _vector(2, 0) = q * L * L / 12.0;  // Moment rechts
+        _vector(3, 0) = -q * L / 2.0;      // Querkraft rechts
+
+        return _vector;
+    }
+
+    // Trapezlast q(x) = q0 + (q1 - q0) * x / L
+    // FEM Lastvektor nach klassischer Literatur
+    double l2 = L * L;
+    double l3 = L * L * L;
+
+    // Lineare Formeln für Hermite-Balken (4 DOF: [M1, V1, M2, V2])
+    _vector(0, 0) = (q0 * l2 / 20.0) + (q1 * l2 / 30.0);           // Moment links
+    _vector(1, 0) = (7.0 * q0 * L / 20.0) + (3.0 * q1 * L / 20.0); // Querkraft links
+    _vector(2, 0) = -(q0 * l2 / 30.0) - (q1 * l2 / 20.0);          // Moment rechts
+    _vector(3, 0) = (3.0 * q0 * L / 20.0) + (7.0 * q1 * L / 20.0); // Querkraft rechts
 
     return _vector;
 }
@@ -1033,144 +1054,164 @@ HRESULT Beam::Analyse()
     BOOL right = FALSE;
     _sections.Reset();
     if (!_sections.IsEmpty())
-        do
-        {
+        do {
             support = (SupportNode*)_sections.GetItem();
-            if (support != NULL)
-            {
+            if (support != NULL) {
                 if (support->GetPosition() == 0)
                     left = TRUE;
                 if (support->GetPosition() == _length)
                     right = TRUE;
             }
-        }
-        while (_sections.Next());
-        if (!left)
-        {
-            InsertSupport(new FreeSupportNode(0));
-        }
-        if (!right)
-        {
-            InsertSupport(new FreeSupportNode(_length));
-        }
-        Section* Q;
-        Section* M;
-        Section* W;
-        ComputeSupportForces();
-        _sections.Reset();
-        Matrix state1(4, 1);
-        Matrix state2(4, 1);
-        Matrix A(4, 4);
-        Matrix L(4, 1);
-        double position = 0;
-        int isPointLoad = TRUE;
-        if (!_sections.IsEmpty())
-        {
-            do
-            {
-                double end = ((SupportNode*)_sections.GetItem())->GetPosition();
-                while (position < end)
-                {
-                    double distance = GetDistance(position, end, isPointLoad);
-                    isPointLoad = distance < EPSILON ? FALSE : TRUE;
+        } while (_sections.Next());
 
-                    // Punktlasten-Sprung manuell ber�cksichtigen
-                    if (distance < EPSILON && isPointLoad)
-                    {
-                        double qJump = 0.0;
+    if (!left) {
+        InsertSupport(new FreeSupportNode(0));
+    }
+    if (!right) {
+        InsertSupport(new FreeSupportNode(_length));
+    }
 
-                        _loads.Reset();
-                        while (!_loads.IsEmpty()) {
-                            LoadNode* l = (LoadNode*)_loads.GetItem();
-                            if (fabs(l->GetStart() - position) < EPSILON && l->GetLength() == 0.0) {
-                                qJump += l->GetLoadVector(0.0)(3, 0); // nur Querkraft
-                            }
-                            if (!_loads.Next()) break;
+    ComputeSupportForces();
+
+    _sections.Reset();
+    Matrix state1(4, 1);
+    Matrix state2(4, 1);
+    Matrix A(4, 4);
+    Matrix L(4, 1);
+    double position = 0;
+    int isPointLoad = TRUE;
+
+    if (!_sections.IsEmpty()) {
+        do {
+            double end = ((SupportNode*)_sections.GetItem())->GetPosition();
+            while (position < end) {
+                double distance = GetDistance(position, end, isPointLoad);
+                isPointLoad = distance < EPSILON ? FALSE : TRUE;
+
+                // Punktlasten-Sprung manuell berücksichtigen
+                if (distance < EPSILON && isPointLoad) {
+                    double qJump = 0.0;
+                    _loads.Reset();
+                    while (!_loads.IsEmpty()) {
+                        LoadNode* l = (LoadNode*)_loads.GetItem();
+                        if (fabs(l->GetStart() - position) < EPSILON && l->GetLength() == 0.0) {
+                            qJump += l->GetLoadVector(0.0)(3, 0); // nur Querkraft
                         }
-
-                        // Sprung zur aktuellen Querkraft addieren
-                        state2(3, 0) += qJump;
+                        if (!_loads.Next()) break;
                     }
-
-                    // Nur Abschnitt aufbauen, wenn wirklich Strecke vorhanden ist
-                    if (distance > EPSILON)
-                    {
-                        A = Matrix(4, 4);
-                        GetMatrix(A, distance);
-                        A *= state2;
-                        state2 = A;
-                    }
-                    L.Fill(0.0);
-                    GetLoadVector(L, position, distance);
-                    state2 += L;
-                    if (distance > EPSILON)
-                    {
-                        // shear force
-                        Q = new Section;
-                        Q->Start = position;
-                        Q->Length = distance;
-                        Q->A4 = 0;
-                        Q->A3 = 0;
-                        Q->A2 = 0;
-                        Q->A1 = (state2(3, 0) - state1(3, 0)) / distance;
-                        Q->A0 = state1(3, 0);
-
-                        // bending moment
-                        M = new Section;
-                        M->Start = position;
-                        M->Length = distance;
-                        M->A4 = 0;
-                        M->A3 = 0;
-                        M->A2 = (state2(3, 0) - state1(3, 0)) / (2 * distance);
-                        M->A1 = state1(3, 0);
-                        M->A0 = state1(2, 0);
-
-                        // displacement
-                        W = new Section;
-                        double Q1 = state1(3, 0) * (-1);
-                        double M1 = state1(2, 0) * (-1);
-                        double phi1 = state1(1, 0) * _EI;
-                        double w1 = state1(0, 0) * _EI;
-                        double Q2 = state2(3, 0) * (-1);
-                        W->Start = position;
-                        W->Length = distance;
-                        W->A4 = ((Q2 - Q1) / (24 * distance)) / _EI;
-                        W->A3 = (Q1 / 6) / _EI;
-                        W->A2 = (M1 / 2) / _EI;
-                        W->A1 = phi1 / _EI;
-                        W->A0 = w1 / _EI;
-                        _shearForces.Insert(Q);
-                        _bendingMoments.Insert(M);
-                        _displacements.Insert(W);
-                    }
-                    position += distance;
-                    state1 = state2;
+                    state2(3, 0) += qJump;
                 }
 
-                if (position < EPSILON)
-                {
-                    state2 = _startState;
+                if (distance > EPSILON) {
+                    A = Matrix(4, 4);
+                    GetMatrix(A, distance);
+                    A *= state2;
+                    state2 = A;
                 }
-                else
-                {
-                    if (fabs(position - _length) < EPSILON)
-                    {
-                        state2 += _endState;
+
+                L.Fill(0.0);
+                GetLoadVector(L, position, distance);
+                state2 += L;
+
+                if (distance > EPSILON) {
+                    // Shear force (parabolisch)
+                    Section* Q = new Section;
+                    Q->Start = position;
+                    Q->Length = distance;
+
+                    double q0 = -state1(3, 0);  // Querkraft negativ umdeuten (also Kraft von außen)
+                    double q1 = -state2(3, 0);
+
+                    Q->A4 = 0;
+                    Q->A3 = 0;
+
+                    bool isConstantLoad = false;
+                    _loads.Reset();
+                    while (!_loads.IsEmpty()) {
+                        LoadNode* load = (LoadNode*)_loads.GetItem();
+                        if (load->IsLoadVector(position, distance)) {
+                            // prüfe Trapezlast
+                            if (auto* trap = dynamic_cast<TrapezoidalLoadNode*>(load)) {
+                                if (fabs(trap->GetValueStart() - trap->GetValueEnd()) < 1e-4) {
+                                    isConstantLoad = true;
+                                    break;
+                                }
+                            }
+                            // prüfe konstante Linienlast
+                            else if (dynamic_cast<LineadDistributedLoadNode*>(load)) {
+                                isConstantLoad = true;
+                                break;
+                            }
+                        }
+                        if (!_loads.Next()) break;
                     }
-                    else
-                    {
-                        SupportNode* support = (SupportNode*) _sections.GetItem();
-                        state2 += support->GetForce();
+
+                    if (isConstantLoad) {
+                        Q->A2 = 0.0;
+                        Q->A1 = -2.0 * q0 / distance;
+                        Q->A0 = q0;
                     }
+                    else {
+                        Q->A2 = (2.0 * (q0 - q1)) / (distance * distance);
+                        Q->A1 = (-3.0 * q0 + q1) / distance;
+                        Q->A0 = q0;
+                    }
+
+                    _shearForces.Insert(Q);
+
+                    // Bending moment (wie bisher – quadratisch)
+                    Section* M = new Section;
+                    M->Start = position;
+                    M->Length = distance;
+                    M->A4 = 0;
+                    M->A3 = 0;
+                    M->A2 = (state2(3, 0) - state1(3, 0)) / (2.0 * distance);
+                    M->A1 = state1(3, 0);
+                    M->A0 = state1(2, 0);
+                    _bendingMoments.Insert(M);
+
+                    // Displacement (wie bisher – korrekt kubisch)
+                    Section* W = new Section;
+                    double Q1 = state1(3, 0) * (-1);
+                    double M1 = state1(2, 0) * (-1);
+                    double phi1 = state1(1, 0) * _EI;
+                    double w1 = state1(0, 0) * _EI;
+                    double Q2 = state2(3, 0) * (-1);
+                    W->Start = position;
+                    W->Length = distance;
+                    W->A4 = ((Q2 - Q1) / (24.0 * distance)) / _EI;
+                    W->A3 = (Q1 / 6.0) / _EI;
+                    W->A2 = (M1 / 2.0) / _EI;
+                    W->A1 = phi1 / _EI;
+                    W->A0 = w1 / _EI;
+                    _displacements.Insert(W);
                 }
+
+                position += distance;
                 state1 = state2;
             }
-            while (_sections.Next());
-        }
-        _shearForces.Reset();
-        _bendingMoments.Reset();
-        _displacements.Reset();
-        return S_OK;
+
+            if (position < EPSILON) {
+                state2 = _startState;
+            }
+            else if (fabs(position - _length) < EPSILON) {
+                state2 += _endState;
+            }
+            else {
+                SupportNode* support = (SupportNode*)_sections.GetItem();
+                state2 += support->GetForce();
+            }
+
+            state1 = state2;
+
+        } while (_sections.Next());
+    }
+
+    _shearForces.Reset();
+    _bendingMoments.Reset();
+    _displacements.Reset();
+
+    return S_OK;
 }
 
 HRESULT Beam::GetNextSection(Section* shearForce, Section* bendingMoment, Section* displacement)
