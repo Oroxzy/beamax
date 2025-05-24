@@ -235,7 +235,7 @@ BEGIN
     PUSHBUTTON      "Cancel",IDCANCEL,82,69,48,14,WS_GROUP | NOT WS_TABSTOP
 END
 
-IDD_ABOUT DIALOGEX 15, 29, 260, 140
+IDD_ABOUT DIALOGEX 15, 29, 260, 150
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "About Beamax"
 FONT 8, "Tahoma"
@@ -255,8 +255,10 @@ BEGIN
     LTEXT "- DPI awareness enabled (crisper on high-resolution screens)", IDC_STATIC, 15, 86, 230, 8
     LTEXT "- Smart label placement to avoid overlapping values", IDC_STATIC, 15, 94, 230, 8
     LTEXT "- Fixed GDI and memory leaks (fonts, pens, graphics)", IDC_STATIC, 15, 102, 230, 8
+    LTEXT "- Antialiased graph fill areas added (red/blue shading for diagram areas)", IDC_STATIC, 15, 110, 230, 8
+    LTEXT "- Negative values now rendered in red, positive values in blue", IDC_STATIC, 15, 118, 230, 8
 
-    PUSHBUTTON "OK", IDOK, 190, 120, 50, 14, NOT WS_TABSTOP
+    PUSHBUTTON "OK", IDOK, 190, 130, 50, 14, NOT WS_TABSTOP
 END
 
 IDD_ROLLER_SUPPORT DIALOGEX 12, 29, 163, 76
