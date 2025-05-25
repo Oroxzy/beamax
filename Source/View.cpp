@@ -889,7 +889,7 @@ BOOL View::IsRectEmpty(CDC* pDC, int x1, int y1, int x2, int y2)
 
 void View::DrawValue(CDC* pDC, int x, int y, BOOL mirror, double value, COLORREF color)
 {
-    if (mirror) value *= -1;
+    if (mirror) value *= 1;
 
     char buffer[32];
     sprintf_s(buffer, "%.2f", value);
