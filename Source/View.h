@@ -1,5 +1,6 @@
 ﻿#include <gdiplus.h>
 #include <gdipluseffects.h>
+#include <vector>
 #ifndef __View__
 #define __View__
 
@@ -13,10 +14,16 @@ private:
     BOOL _viewBendingMoment;
     BOOL _viewDisplacement;
     BOOL _viewNumericalValues;
+    CPoint _lastMouse;
+    CString _hoverText;
+    bool _showHoverText = false;
+    std::map<CString, std::vector<Gdiplus::PointF>> _allCurvePoints;
+    CString _activeViewName;
 
 public:
     View();
     virtual ~View();
+    afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 
     // message handler
 protected:

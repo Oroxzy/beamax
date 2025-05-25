@@ -38,6 +38,7 @@ BEGIN_MESSAGE_MAP(View, CScrollView)
     ON_COMMAND(IDM_VIEW_NUMERICAL_VALUES, OnViewNumericalValues)
     ON_UPDATE_COMMAND_UI(IDM_VIEW_NUMERICAL_VALUES, OnUpdateViewNumericalValues)
     ON_COMMAND(ID_FILE_PRINT, CScrollView::OnFilePrint)
+    ON_WM_MOUSEMOVE()
 END_MESSAGE_MAP()
 
 View::View() : _document(nullptr)  // <– so wird korrekt initialisiert
@@ -134,6 +135,38 @@ void View::OnDraw(CDC* pDrawDC)
         dc.SetMapMode(MM_TEXT);
         pDrawDC->BitBlt(rectDevice.left, rectDevice.top, rectDevice.Width(), rectDevice.Height(), &dc, 0, 0, SRCCOPY);
         dc.SelectObject(pbmpOld);
+    }
+
+    if (_showHoverText)
+    {
+        CFont font;
+        font.CreateFont(
+            -16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            ANSI_CHARSET, OUT_DEFAULT_PRECIS,
+            CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+            DEFAULT_PITCH | FF_SWISS, _T("Segoe UI"));
+        CFont* oldFont = pDrawDC->SelectObject(&font);
+
+        pDrawDC->SetBkMode(OPAQUE);
+        pDrawDC->SetBkColor(RGB(255, 255, 255));
+        pDrawDC->SetTextColor(RGB(0, 0, 0));
+
+        // Textgröße berechnen
+        CSize textSize = pDrawDC->GetTextExtent(_hoverText);
+        int padding = 4;
+        int x = _lastMouse.x + 12;
+        int y = _lastMouse.y;
+
+        // Rechteck zeichnen
+        CRect boxRect(x - padding, y - padding,
+            x + textSize.cx + padding, y + textSize.cy + padding);
+        pDrawDC->FillSolidRect(&boxRect, RGB(255, 255, 255));  // Hintergrund
+        pDrawDC->DrawEdge(&boxRect, EDGE_RAISED, BF_RECT);     // Rahmen
+
+        // Text ausgeben
+        pDrawDC->TextOut(x, y, _hoverText);
+
+        pDrawDC->SelectObject(oldFont);
     }
 }
 
@@ -930,6 +963,8 @@ void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeigh
     graphics.SetSmoothingMode(SmoothingModeAntiAlias);
     graphics.SetCompositingQuality(CompositingQualityHighQuality);
 
+    _activeViewName = viewName;  // z. B. "FZ", "MY", "UZ"
+
     // Zeichnet die Kurven (inkl. Fläche, Start/Endlinien)
     DrawCurves(graphics, sectionList, beamX, beamY, scaleX, scaleY);
 
@@ -1023,6 +1058,9 @@ double View::CalculateMaxValue(CObList* sectionList)
 // Zeichnet die Verformungskurven sowie farbige Flächen für positive und negative Bereiche
 void View::DrawCurves(Graphics& graphics, CObList* sectionList, int beamX, int beamY, double scaleX, double scaleY)
 {
+    std::vector<PointF>& curve = _allCurvePoints[_activeViewName];
+    curve.clear();
+
     SolidBrush brushRed(Color(80, 0, 0, 255));     // Transparente Farbe für positive Fläche
     SolidBrush brushBlue(Color(80, 255, 0, 0));    // Transparente Farbe für negative Fläche
     Pen curvePen(Color(255, 0, 0, 0), 1.5f);       // Linie für Kurve
@@ -1040,6 +1078,7 @@ void View::DrawCurves(Graphics& graphics, CObList* sectionList, int beamX, int b
         {
             double y = SolvePolynom(x, obj) * scaleY;
             PointF pt((REAL)(beamX + (xAbsStart + x) * scaleX), (REAL)(beamY + y));
+            curve.push_back(pt);
             if (!first) graphics.DrawLine(&curvePen, lastPt, pt);
             lastPt = pt; first = false;
             (y >= 0 ? posPts : negPts).push_back(pt);
@@ -1159,4 +1198,60 @@ void View::DrawResults(CDC* pDC, int beamX, int beamY, double scaleX, int viewHe
         DrawView(pDC, beamX, beamY, scaleX, viewHeight, FALSE, _viewNumericalValues, 1000, "[mm]", "UZ", &_document->_displacementList);
         beamY += viewHeight;
     }
+}
+
+void View::OnMouseMove(UINT nFlags, CPoint point)
+{
+    _lastMouse = point;
+    _showHoverText = false;
+
+    for (const auto& pair : _allCurvePoints)
+    {
+        const CString& curveType = pair.first; // z. B. "FZ" oder "MY"
+        const std::vector<PointF>& points = pair.second;
+
+        for (const PointF& pt : points)
+        {
+            float dx = fabs(pt.X - point.x);
+            float dy = fabs(pt.Y - point.y);
+
+            if (dx < 6 && dy < 6)
+            {
+                // Balkenposition berechnen
+                CRect rect;
+                GetClientRect(&rect);
+                int width = rect.Width();
+                if (width < 400) width = 400;
+                double borderX = _document->_beamLength / 6;
+                double scaleX = width / (_document->_beamLength + 2 * borderX);
+                int beamX = (int)(borderX * scaleX);
+                double xPos = (pt.X - beamX) / scaleX;
+
+                // Nur passende Größe anzeigen
+                if (curveType == "FZ")
+                {
+                    double Q = _document->GetShearForce(xPos);
+                    _hoverText.Format("x = %.2f m, Q = %.2f kN", xPos, Q);
+                }
+                else if (curveType == "MY")
+                {
+                    double M = _document->GetBendingMoment(xPos);
+                    _hoverText.Format("x = %.2f m, M = %.2f kNm", xPos, M);
+                }
+                else if (curveType == "UZ")
+                {
+                    double W = _document->GetDisplacement(xPos);
+                    _hoverText.Format("x = %.2f m, w = %.2f mm", xPos, W * 1000.0);
+                }
+
+                _lastMouse = point;
+                _showHoverText = true;
+                Invalidate(FALSE);
+                return;
+            }
+        }
+    }
+
+    Invalidate(FALSE);  // falls Text wieder verschwinden soll
+    CScrollView::OnMouseMove(nFlags, point);
 }
