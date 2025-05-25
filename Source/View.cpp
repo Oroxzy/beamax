@@ -10,6 +10,8 @@
 #include <string>
 #include <set>
 #include <cmath>
+#include <algorithm>
+
 using namespace Gdiplus;
 #pragma comment(lib, "gdiplus.lib")
 
@@ -972,33 +974,71 @@ void View::DrawViewName(CDC* pDC, int beamX, int beamY, const char* viewName)
 CString View::GetUnitLabel(const char* viewName, const char* unitName, CObList* sectionList, double& maxVal, double& minVal)
 {
     CString label;
+
+    // === Querkraftanzeige: FZ ===
     if (strcmp(viewName, "FZ") == 0) {
-        maxVal = _document->GetMaxShear();
-        minVal = _document->GetMinShear();
-        label.Format("[kN]  Qmax = %.2f", fabs(maxVal));
-    }
-    else if (strcmp(viewName, "MY") == 0) {
-        maxVal = _document->GetMaxMoment();
-        minVal = _document->GetMinMoment();
-        label.Format("[kNm]  Mmax = %.2f", fabs(maxVal));
-    }
-    else if (strcmp(viewName, "UZ") == 0) {
-        double maxW = 0.0, minW = 0.0;
+        maxVal = -1e20;
+        minVal = +1e20;
+
         POSITION pos = sectionList->GetHeadPosition();
         while (pos) {
             Section* s = (Section*)sectionList->GetNext(pos);
-            for (double x = 0; x <= s->Length; x += 0.01) {
-                double y = s->A4 * pow(x, 4) + s->A3 * pow(x, 3) + s->A2 * x * x + s->A1 * x + s->A0;
-                maxW = (std::max)((maxW), (y));
-                minW = (std::min)((minW), (y));
+            for (double x = 0.0; x <= s->Length; x += 0.01) {
+                double y = SolvePolynom(x, s);
+                maxVal = (maxVal > y) ? maxVal : y;
+                minVal = (minVal < y) ? minVal : y;
             }
         }
-        maxVal = maxW; minVal = minW;
-        label.Format("[mm]  wmax = %.2f", fabs(maxW * 1000.0));
+
+        double absMax = (fabs(maxVal) > fabs(minVal)) ? fabs(maxVal) : fabs(minVal);
+        label.Format("[kN]  Qmax = %.2f", absMax);
     }
+
+    // === Biegemomentanzeige: MY ===
+    else if (strcmp(viewName, "MY") == 0) {
+        maxVal = -1e20;
+        minVal = +1e20;
+
+        POSITION pos = sectionList->GetHeadPosition();
+        while (pos) {
+            Section* s = (Section*)sectionList->GetNext(pos);
+            for (double x = 0.0; x <= s->Length; x += 0.01) {
+                double y = SolvePolynom(x, s);
+                maxVal = (maxVal > y) ? maxVal : y;
+                minVal = (minVal < y) ? minVal : y;
+            }
+        }
+
+        double absMax = (fabs(maxVal) > fabs(minVal)) ? fabs(maxVal) : fabs(minVal);
+        label.Format("[kNm]  Mmax = %.2f", absMax);
+    }
+
+    // === Durchbiegung: UZ ===
+    else if (strcmp(viewName, "UZ") == 0) {
+        maxVal = -1e20;
+        minVal = +1e20;
+
+        POSITION pos = sectionList->GetHeadPosition();
+        while (pos) {
+            Section* s = (Section*)sectionList->GetNext(pos);
+            for (double x = 0.0; x <= s->Length; x += 0.01) {
+                double y = s->A4 * pow(x, 4) + s->A3 * pow(x, 3) + s->A2 * x * x + s->A1 * x + s->A0;
+                maxVal = (maxVal > y) ? maxVal : y;
+                minVal = (minVal < y) ? minVal : y;
+            }
+        }
+
+        double absMax = (fabs(maxVal) > fabs(minVal)) ? fabs(maxVal) : fabs(minVal);
+        label.Format("[mm]  wmax = %.2f", absMax * 1000.0);
+    }
+
+    // === Fallback für andere Ansichten ===
     else {
+        maxVal = 0.0;
+        minVal = 0.0;
         label = unitName;
     }
+
     return label;
 }
 
@@ -1012,14 +1052,21 @@ void View::DrawUnitLabel(CDC* pDC, int beamX, int beamY, double scaleX, CString 
 // Berechnet das größte Ergebnis der Polynome zur Skalierung
 double View::CalculateMaxValue(CObList* sectionList)
 {
+    // Startwert mit kleinstmöglichem positiven Betrag (0 erlaubt, da fabs(y) ≥ 0)
     double maxVal = 0.0;
+
+    // Alle Abschnitte durchgehen
     POSITION pos = sectionList->GetHeadPosition();
     while (pos) {
-        Section* obj = (Section*)sectionList->GetNext(pos);
-        double xVals[] = { 0, obj->Length, GetMaximum(obj) };
-        for (double x : xVals)
-            maxVal = (std::max)((maxVal), (fabs(SolvePolynom(x, obj))));
+        Section* s = (Section*)sectionList->GetNext(pos);
+
+        // Im Abstand von 0.01 entlang des Abschnitts probieren
+        for (double x = 0.0; x <= s->Length; x += 0.01) {
+            double y = fabs(SolvePolynom(x, s));  // Betrag nehmen (für Darstellung)
+            maxVal = (maxVal > y) ? maxVal : y;   // maxVal aktualisieren (ohne std::max)
+        }
     }
+
     return maxVal;
 }
 
