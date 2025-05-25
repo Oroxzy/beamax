@@ -385,8 +385,10 @@ void View::OnLButtonDown(UINT flags, CPoint point)
     position = _document->_objectList.GetHeadPosition();
     while ((position != NULL) && (_document->_selected == NULL))
     {
-        object = (ObjectCast*)_document->_objectList.GetNext(position);
-        if (object->GetBoundRect().m_rect.PtInRect(point))
+        CObject* rawObject = _document->_objectList.GetNext(position);
+        object = dynamic_cast<ObjectCast*>(rawObject); // safer than C-style cast
+
+        if (object != nullptr && object->GetBoundRect().m_rect.PtInRect(point))
         {
             _document->_selected = object;
         }
