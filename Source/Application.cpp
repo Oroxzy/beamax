@@ -42,6 +42,7 @@ int ApplicationWindow::OnCreate(LPCREATESTRUCT lpCreateStruct)
     }
     _toolBar.SetBarStyle(_toolBar.GetBarStyle() | CBRS_TOOLTIPS | CBRS_FLYBY | CBRS_SIZE_DYNAMIC);
     _toolBar.EnableDocking(CBRS_ALIGN_ANY);
+    _toolBar.SetSizes(CSize(52, 52), CSize(45, 45));  // Button- und Icon-Größe
     EnableDocking(CBRS_ALIGN_ANY);
     DockControlBar(&_toolBar);
 
