@@ -70,37 +70,42 @@ void FixedSupport::Serialize(CArchive& archive)
 
 void FixedSupport::Draw(CDC* pDC, int x, int y, double Scale)
 {
+    CPen pen(PS_SOLID, 2, RGB(0, 0, 0)); // 2 Pixel dick, schwarz
+    CPen* oldPen = pDC->SelectObject(&pen);
+
     x = x + ((int)(_position * Scale));
 
-    pDC->MoveTo(x, y - 8);
-    pDC->LineTo(x, y + 8);
+    pDC->MoveTo(x, y - 16);
+    pDC->LineTo(x, y + 16);
 
     if (fabs(_position) < EPSILON)
     {
-        pDC->MoveTo(x - 4, y - 4);
+        pDC->MoveTo(x - 8, y - 8);
+        pDC->LineTo(x, y - 16);
+        pDC->MoveTo(x - 8, y);
         pDC->LineTo(x, y - 8);
-        pDC->MoveTo(x - 4, y);
-        pDC->LineTo(x, y - 4);
-        pDC->MoveTo(x - 4, y + 4);
+        pDC->MoveTo(x - 8, y + 8);
         pDC->LineTo(x, y);
-        pDC->MoveTo(x - 4, y + 8);
-        pDC->LineTo(x, y + 4);
+        pDC->MoveTo(x - 8, y + 16);
+        pDC->LineTo(x, y + 8);
 
-        _boundRect = CRectTracker(CRect(x - 8, y - 13, x + 4, y + 13), CRectTracker::dottedLine);
+        _boundRect = CRectTracker(CRect(x - 16, y - 26, x + 8, y + 26), CRectTracker::dottedLine);
     }
     else
     {
-        pDC->MoveTo(x + 4, y - 4);
+        pDC->MoveTo(x + 8, y - 8);
+        pDC->LineTo(x, y - 16);
+        pDC->MoveTo(x + 8, y);
         pDC->LineTo(x, y - 8);
-        pDC->MoveTo(x + 4, y);
-        pDC->LineTo(x, y - 4);
-        pDC->MoveTo(x + 4, y + 4);
+        pDC->MoveTo(x + 8, y + 8);
         pDC->LineTo(x, y);
-        pDC->MoveTo(x + 4, y + 8);
-        pDC->LineTo(x, y + 4);
+        pDC->MoveTo(x + 8, y + 16);
+        pDC->LineTo(x, y + 8);
 
-        _boundRect = CRectTracker(CRect(x - 4, y - 13, x + 8, y + 13), CRectTracker::dottedLine);
+        _boundRect = CRectTracker(CRect(x - 8, y - 26, x + 16, y + 26), CRectTracker::dottedLine);
     }
+
+    pDC->SelectObject(oldPen); // alten Stift wiederherstellen
 }
 
 IMPLEMENT_SERIAL(HingedSupport, SupportCast, 3);
@@ -115,14 +120,19 @@ void HingedSupport::Serialize(CArchive& archive)
 
 void HingedSupport::Draw(CDC* pDC, int x, int y, double Scale)
 {
+    CPen pen(PS_SOLID, 2, RGB(0, 0, 0)); // 2 Pixel dick, schwarz
+    CPen* oldPen = pDC->SelectObject(&pen);
+
     x = x + ((int)(_position * Scale));
 
     pDC->MoveTo(x, y);
-    pDC->LineTo(x + 8, y + 8);
-    pDC->LineTo(x - 8, y + 8);
+    pDC->LineTo(x + 16, y + 16);
+    pDC->LineTo(x - 16, y + 16);
     pDC->LineTo(x, y);
 
-    _boundRect = CRectTracker(CRect(x - 12, y - 4, x + 12, y + 12), CRectTracker::dottedLine);
+    _boundRect = CRectTracker(CRect(x - 24, y - 8, x + 24, y + 24), CRectTracker::dottedLine);
+
+    pDC->SelectObject(oldPen); // alten Stift wiederherstellen
 }
 
 IMPLEMENT_SERIAL(RollerSupport, SupportCast, 3);
@@ -137,17 +147,22 @@ void RollerSupport::Serialize(CArchive& archive)
 
 void RollerSupport::Draw(CDC* pDC, int x, int y, double Scale)
 {
+    CPen pen(PS_SOLID, 2, RGB(0, 0, 0)); // 2 Pixel dick, schwarz
+    CPen* oldPen = pDC->SelectObject(&pen);
+
     x = x + ((int)(_position * Scale));
 
     pDC->MoveTo(x, y);
-    pDC->LineTo(x + 8, y + 8);
-    pDC->LineTo(x - 8, y + 8);
+    pDC->LineTo(x + 16, y + 16);
+    pDC->LineTo(x - 16, y + 16);
     pDC->LineTo(x, y);
-    pDC->MoveTo(x + 8, y + 10);
-    pDC->LineTo(x - 8, y + 10);
+    pDC->MoveTo(x + 16, y + 20);
+    pDC->LineTo(x - 16, y + 20);
 
-    _boundRect = CRectTracker(CRect(x - 12, y - 4, x + 12, y + 14),
+    _boundRect = CRectTracker(CRect(x - 24, y - 8, x + 24, y + 28),
         CRectTracker::dottedLine);
+
+    pDC->SelectObject(oldPen); // alten Stift wiederherstellen
 }
 
 IMPLEMENT_SERIAL(LoadCast, ObjectCast, 2);

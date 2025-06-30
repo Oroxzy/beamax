@@ -19,6 +19,7 @@ private:
     bool _showHoverText = false;
     std::map<CString, std::vector<Gdiplus::PointF>> _allCurvePoints;
     CString _activeViewName;
+    int _fontSize;  // Basisschriftgröße in Punkten
 
 public:
     View();
@@ -59,6 +60,7 @@ protected:
     afx_msg void OnUpdateViewDisplacement(CCmdUI* pCmdUI);
     afx_msg void OnViewNumericalValues();
     afx_msg void OnUpdateViewNumericalValues(CCmdUI* pCmdUI);
+    afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
 
     // printer handler
     virtual BOOL OnPreparePrinting(CPrintInfo* pPrintInfo);

@@ -39,10 +39,13 @@ BEGIN_MESSAGE_MAP(View, CScrollView)
     ON_UPDATE_COMMAND_UI(IDM_VIEW_NUMERICAL_VALUES, OnUpdateViewNumericalValues)
     ON_COMMAND(ID_FILE_PRINT, CScrollView::OnFilePrint)
     ON_WM_MOUSEMOVE()
+    ON_WM_MOUSEWHEEL()
 END_MESSAGE_MAP()
 
 View::View() : _document(nullptr)  // <– so wird korrekt initialisiert
 {
+    _fontSize = 16;  // Startgröße (wie bisher)
+
     // create popup menu
     _popupMenu = new CMenu;
     _popupMenu->CreatePopupMenu();
@@ -141,7 +144,7 @@ void View::OnDraw(CDC* pDrawDC)
     {
         CFont font;
         font.CreateFont(
-            -16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+            -_fontSize, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
             ANSI_CHARSET, OUT_DEFAULT_PRECIS,
             CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
             DEFAULT_PITCH | FF_SWISS, _T("Segoe UI"));
@@ -246,7 +249,7 @@ void View::Draw(CDC* pDC, CDC* pDrawDC)
         CPen* oldPen = pDC->SelectObject(&newPen);
         CFont newFont;
         newFont.CreateFont(
-            -16, 0, 0, 0,              // Höhe: -20 entspricht ca. 14pt
+            -_fontSize, 0, 0, 0,              // Höhe: -20 entspricht ca. 14pt
             FW_BOLD, FALSE, FALSE, FALSE,
             ANSI_CHARSET, OUT_DEFAULT_PRECIS,
             CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
@@ -268,11 +271,9 @@ void View::Draw(CDC* pDC, CDC* pDrawDC)
             // draw the beam object/line
             // GDI+ Initialisierung (lokal)
             Graphics graphics(pDC->GetSafeHdc());
-            graphics.SetSmoothingMode(SmoothingModeAntiAlias);
-            graphics.SetCompositingQuality(CompositingQualityHighQuality);
 
             // schwarzer Pen, 1 Pixel
-            Pen pen(Color(255, 0, 0, 0), 1.5f);  // RGBA (voll Deckkraft, schwarz)
+            Pen pen(Color(255, 0, 0, 0), 2.0f);  // RGBA (voll Deckkraft, schwarz)
 
             // Linie zeichnen
             PointF start((REAL)beamX, (REAL)beamY);
@@ -936,8 +937,10 @@ void View::DrawReactionValue(CDC* pDC, int x, int y, double value, COLORREF colo
 
     pDC->SetTextColor(color);
     pDC->SetTextAlign(TA_CENTER | TA_BASELINE);
-    pDC->TextOut(x, y, buffer);
+
+    pDC->TextOut(x, y + 12, buffer);  // Abstand beibehalten
 }
+
 
 // Hauptfunktion zum Zeichnen einer Ansicht mit Beschriftung, Farbflächen und Werten
 void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeight, BOOL mirror, BOOL values, double unitScale, char* unitName, char* viewName, CObList* sectionList)
@@ -980,9 +983,14 @@ void View::DrawView(CDC* pDC, int beamX, int beamY, double scaleX, int viewHeigh
 // Zeichnet die horizontale Linie für den Träger
 void View::DrawBeam(CDC* pDC, int beamX, int beamY, double scaleX)
 {
+    CPen thickPen(PS_SOLID, 2, RGB(0, 0, 0)); // 2 Pixel dick, schwarz
+    CPen* oldPen = pDC->SelectObject(&thickPen);
+
     int beamLengthPx = (int)(_document->_beamLength * scaleX);
     pDC->MoveTo(beamX, beamY);
     pDC->LineTo(beamX + beamLengthPx, beamY);
+
+    pDC->SelectObject(oldPen); // alten Stift zurücksetzen
 }
 
 // Zeichnet den Ansichtsnamen links neben dem Träger mit Rahmen
@@ -1256,4 +1264,17 @@ void View::OnMouseMove(UINT nFlags, CPoint point)
 
     Invalidate(FALSE);  // falls Text wieder verschwinden soll
     CScrollView::OnMouseMove(nFlags, point);
+}
+
+BOOL View::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
+{
+    if (zDelta > 0) {
+        _fontSize = min(48, _fontSize + 1);  // Maximalgröße
+    }
+    else {
+        _fontSize = max(6, _fontSize - 1);   // Minimalgröße
+    }
+
+    _document->UpdateAllViews(NULL);  // Neuzeichnen
+    return TRUE;
 }
